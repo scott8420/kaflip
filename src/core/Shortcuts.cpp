@@ -139,6 +139,9 @@ const std::vector<ShortcutSpec>& shortcut_registry() {
         // s005 -- focus mode. Escape is the window's (doc-only); taps are the page's.
         {"Reading", "win.focus-mode",    {"F11"}, "", "Focus mode -- fullscreen, the page alone"},
         {"Reading", "win.reading-style", {"<Ctrl>comma"}, "", "Reading style -- fonts, colours, page, presets"},   // s007
+        {"Reading", "win.text-bigger",   {"<Ctrl>plus", "<Ctrl>equal"}, "", "Bigger text"},          // s008a
+        {"Reading", "win.text-smaller",  {"<Ctrl>minus"}, "", "Smaller text"},
+        {"Reading", "win.text-reset",    {"<Ctrl>0"}, "", "Text size back to 100%"},
         {"Reading", "", {}, "Esc", "Leave focus mode"},
         {"Reading", "", {}, "Click left / right third", "Turn the page (focus mode)"},
         {"Reading", "", {}, "Click the middle  /  move the mouse", "Show the bar (focus mode)"},

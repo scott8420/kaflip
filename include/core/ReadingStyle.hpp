@@ -63,6 +63,12 @@ ReadingStyle sanitized(ReadingStyle s);
 std::string style_css(const ReadingStyle& s);
 std::string book_css(const ReadingStyle& s);
 
+// s008a -- focus mode follows the Reading style (Scott: "the focus mode
+// doesn't use the custom settings"): everything comes from `reading` except
+// the colours, which are focus's own; the override level is the stronger of
+// the two, so a dark focus palette still reaches every element.
+ReadingStyle focus_effective(const ReadingStyle& reading, const ReadingStyle& focus);
+
 // JSON for one style (unknown or missing fields keep their defaults).
 std::string style_to_json(const ReadingStyle& s);
 std::optional<ReadingStyle> style_from_json(const std::string& text);

@@ -752,6 +752,19 @@ int main() {
         check("style JSON: missing fields keep defaults", core::style_from_json("{}") && *core::style_from_json("{}") == ReadingStyle{});
         check("style JSON: junk refused", !core::style_from_json("[1,2"));
 
+        {
+            ReadingStyle r = *core::find_preset("Paper");
+            r.size_pct = 140; r.body_font = "Literata"; r.margin_x = 90; r.spread = true;
+            const ReadingStyle f = *core::find_preset("Night");
+            const ReadingStyle e = core::focus_effective(r, f);
+            check("focus follows reading: fonts, size, page from Reading",
+                  e.size_pct == 140 && e.body_font == "Literata" && e.margin_x == 90 && e.spread &&
+                  e.justify == core::Justify::Full);
+            check("focus follows reading: colours from Focus",
+                  e.page == f.page && e.text == f.text && e.head == f.head && e.link == f.link);
+            check("focus follows reading: the stronger override level", e.level == Override::Everything);
+        }
+
         // the store + the gate
         core::Styles st;
         check("styles: defaults are Day for reading, Night for focus",

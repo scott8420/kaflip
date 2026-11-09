@@ -200,3 +200,10 @@ window.kaflip scale trough highlight { background-color: #5eead4; }
 window.kaflip switch:checked { background-color: #0e7490; }
 window.kaflip headerbar button:checked { background-color: rgba(255,255,255,0.16); color: #ffffff; }
 window.kaflip headerbar .linked > button { padding: 4px 14px; }
+
+/* s008a -- the text-size slider in the bar and the focus HUD */
+.reader-nav scale, .focus-hud scale { min-width: 140px; }
+.reader-nav scale trough highlight, .focus-hud scale trough highlight { background-color: #5eead4; }
+.size-small { font-size: 0.8em; font-weight: 700; color: rgba(241,247,248,0.65); }
+.size-big   { font-size: 1.25em; font-weight: 700; color: rgba(241,247,248,0.85); margin-end: 6px; }
+.reader-nav separator, .focus-hud separator { background-color: rgba(255,255,255,0.12); min-width: 1px; }

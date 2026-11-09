@@ -459,12 +459,28 @@ void Shell::poke_hud() {  // helper: show, then hide after a pause
 // s007 -- reading style
 // ─────────────────────────────────────────────────────────────────────────────
 void Shell::apply_style() {  // helper: the book sheet from the active style
-    const core::ReadingStyle& s = m_styles.at(m_focus ? core::Styles::kFocus : core::Styles::kReading);
+    // s008a: focus mode = the Reading style with focus mode's colours.
+    const core::ReadingStyle& r = m_styles.at(core::Styles::kReading);
+    const core::ReadingStyle s = m_focus ? core::focus_effective(r, m_styles.at(core::Styles::kFocus)) : r;
     m_reader.set_book_css(core::book_css(s), s.page);
+    // The size sliders show the Reading size (the one both modes use).
+    m_size_painting = true;
+    m_size_scale.set_value(r.size_pct);
+    m_hud_size.set_value(r.size_pct);
+    m_size_painting = false;
 }
 
 std::string Shell::style_file() const {  // helper: XDG config (a setting, not data)
     return (std::filesystem::path(Glib::get_user_config_dir()) / "kaflip" / "style.json").string();
+}
+
+// s008a -- text size from the bar, the HUD or Ctrl +/-/0: the Reading
+// style's size, one undo step per drag (merged), in the style journal.
+void Shell::set_text_size(int pct, bool merge) {  // helper
+    core::ReadingStyle n = m_styles.at(core::Styles::kReading);
+    n.size_pct = pct;
+    core::styles::set(m_style_journal, m_styles, core::Styles::kReading, n, "Text size",
+                      merge ? "size" : "");
 }
 
 }  // namespace kaflip

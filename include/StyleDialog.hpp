@@ -14,6 +14,7 @@
 #include <gtkmm/window.h>
 
 #include <string>
+#include <vector>
 
 typedef struct _WebKitWebView WebKitWebView;
 
@@ -62,6 +63,8 @@ private:
     Gtk::Switch         m_hyphens, m_spread;
     Gtk::ColorDialogButton m_page, m_text, m_head, m_link;
     WebKitWebView*      m_preview = nullptr;   // owned by the GTK tree
+    Gtk::Label          m_focus_note;          // s008a: "focus mode uses your Reading text and page"
+    std::vector<Gtk::Widget*> m_reading_only;  // s008a: greyed while editing focus mode
 };
 
 }  // namespace kaflip

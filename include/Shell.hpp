@@ -131,6 +131,7 @@ private:
     bool stones_active() const;                   // category: helper: Ctrl+Z goes to the stones (Undo page) or the library (s006)
     void apply_style();                           // category: helper: the book sheet from the active style (s007)
     std::string style_file() const;               // category: helper: the XDG config path (s007)
+    void set_text_size(int pct, bool merge);      // category: helper: the Reading size, one undo step (s008a)
 
     // Titlebar: brand logo + Open (start), hamburger (end).
     widgets::Button     m_logo_button;   // frameless brand mark; opens About
@@ -213,6 +214,9 @@ private:
     std::string                  m_style_file;
     bool                         m_style_queued = false;
     std::unique_ptr<StyleDialog> m_style_dialog;
+    widgets::Scale               m_size_scale;    // s008a: text size in the nav bar
+    widgets::Scale               m_hud_size;      // s008a: and in the focus HUD
+    bool                         m_size_painting = false;
 
     // s005 -- focus mode. A view state, like the page: not an undo step.
     bool              m_focus = false;

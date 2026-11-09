@@ -151,6 +151,17 @@ std::string book_css(const ReadingStyle& in) {
     return pagination_css(PageMargins{s.margin_x, s.margin_y, s.max_line, s.spread}) + style_css(s);
 }
 
+ReadingStyle focus_effective(const ReadingStyle& reading, const ReadingStyle& focus) {
+    ReadingStyle e = reading;
+    e.page = focus.page;
+    e.text = focus.text;
+    e.head = focus.head;
+    e.link = focus.link;
+    e.level = std::max(reading.level, focus.level);
+    e.preset = focus.preset;
+    return sanitized(e);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // JSON
 // ─────────────────────────────────────────────────────────────────────────────

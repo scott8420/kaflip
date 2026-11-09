@@ -8,6 +8,8 @@
 #include <gtkmm/gesturedrag.h>
 #include <gtkmm/eventcontrollerfocus.h>
 #include <gtkmm/image.h>
+#include <gtkmm/separator.h>
+#include <cmath>
 #include <gtkmm/eventcontrollermotion.h>
 #include "core/Tabs.hpp"
 
@@ -255,6 +257,34 @@ void Shell::build_reader_page() {  // zone: the Reader page
     m_reader_nav.append(m_prev_button);
     m_reader_nav.append(m_chapter_label);
     m_reader_nav.append(m_next_button);
+    // s008a: text size, right in the bar -- "A" small, a slider, "A" big.
+    const auto size_slider = [this](widgets::Scale& sc, widgets::Box& into) {
+        auto small = Gtk::make_managed<Gtk::Label>("A");
+        small->add_css_class("size-small");
+        auto big = Gtk::make_managed<Gtk::Label>("A");
+        big->add_css_class("size-big");
+        sc.set_range(60, 220);
+        sc.set_increments(5, 10);
+        sc.set_digits(0);
+        sc.set_round_digits(0);
+        sc.set_draw_value(false);
+        sc.set_size_request(140, -1);
+        sc.set_focus_on_click(false);
+        sc.set_tooltip_text("Text size (Ctrl+plus / Ctrl+minus / Ctrl+0)");
+        sc.add_mark(100, Gtk::PositionType::BOTTOM, "");
+        sc.signal_value_changed().connect([this, &sc] {
+            if (m_size_painting) return;
+            set_text_size(int(std::lround(sc.get_value())), true);
+        });
+        auto sep = Gtk::make_managed<Gtk::Separator>(Gtk::Orientation::VERTICAL);
+        sep->set_margin_start(6);
+        sep->set_margin_end(6);
+        into.append(*sep);
+        into.append(*small);
+        into.append(sc);
+        into.append(*big);
+    };
+    size_slider(m_size_scale, m_reader_nav);
     m_reader_page.append(m_reader_nav);
 
     m_reader.signal_changed().connect(sigc::mem_fun(*this, &Shell::update_reader_ui));
@@ -276,6 +306,7 @@ void Shell::build_reader_page() {  // zone: the Reader page
     m_hud_label.set_margin_end(10);
     m_hud.append(m_hud_label);
     m_hud.append(*hud_button("go-next-symbolic", "win.page-next", "Next page"));
+    size_slider(m_hud_size, m_hud);   // s008a
     m_hud.append(*hud_button("view-restore-symbolic", "win.focus-mode", "Leave focus mode (Esc)"));
     m_hud_revealer.set_child(m_hud);
     m_hud_revealer.set_transition_type(Gtk::RevealerTransitionType::CROSSFADE);

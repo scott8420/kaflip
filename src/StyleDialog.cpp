@@ -252,6 +252,12 @@ void StyleDialog::build() {
         colours->append(*v);
     }
 
+    m_focus_note.set_markup("<b>Focus mode uses your Reading text and page settings.</b> "
+                            "Only its colours are its own -- pick a preset or set them below.");
+    m_focus_note.set_wrap(true);
+    m_focus_note.set_xalign(0.0f);
+    m_focus_note.add_css_class("dim-label");
+    grid->attach(m_focus_note, 0, row++, 2, 1);
     section("Text");
     add_row("Whose style", m_level);
     add_row("Body font", *font_row(m_body_font, m_body_book, false));
@@ -261,6 +267,9 @@ void StyleDialog::build() {
     add_row("Paragraphs", m_paras);
     add_row("Alignment", m_justify);
     add_row("Hyphenation", m_hyphens);
+    for (Gtk::Widget* w : std::initializer_list<Gtk::Widget*>{&m_level, &m_body_font, &m_body_book, &m_head_font, &m_head_book,
+                                                              &m_size, &m_line, &m_paras, &m_justify, &m_hyphens})
+        m_reading_only.push_back(w);
     section("Colours");
     add_row("", *colours);
     section("Page");
@@ -268,6 +277,8 @@ void StyleDialog::build() {
     add_row("Top margin", m_margin_y);
     add_row("Line width", m_max_line);
     add_row("Two pages", m_spread);
+    for (Gtk::Widget* w : std::initializer_list<Gtk::Widget*>{&m_margin_x, &m_margin_y, &m_max_line, &m_spread})
+        m_reading_only.push_back(w);
 
     auto scroll = Gtk::make_managed<Gtk::ScrolledWindow>();
     scroll->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
@@ -326,6 +337,14 @@ void StyleDialog::refresh() {
     m_max_line.set_value(s.max_line);
     m_spread.set_active(s.spread);
     m_painting = false;
+    // s008a: focus mode takes text + page from Reading; only colours are its own.
+    const bool focus = m_id == core::Styles::kFocus;
+    m_focus_note.set_visible(focus);
+    for (Gtk::Widget* w : m_reading_only) w->set_sensitive(!focus);
+    if (focus) {
+        m_body_font.set_sensitive(false);
+        m_head_font.set_sensitive(false);
+    }
 
     m_undo.set_sensitive(m_journal.can_undo());
     m_redo.set_sensitive(m_journal.can_redo());
@@ -338,7 +357,10 @@ void StyleDialog::refresh() {
 
 void StyleDialog::update_preview() {
     if (!m_preview) return;
-    const core::ReadingStyle& s = m_styles.at(m_id);
+    // s008a: preview what the book will show -- focus mode is effective.
+    const core::ReadingStyle s = m_id == core::Styles::kFocus
+        ? core::focus_effective(m_styles.at(core::Styles::kReading), m_styles.at(core::Styles::kFocus))
+        : m_styles.at(m_id);
     // Not paginated: the style alone, with the margins as padding.
     const std::string html =
         "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" + core::style_css(s) +

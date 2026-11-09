@@ -14,6 +14,8 @@ Shell::Shell()
       m_open_button("shell.open_button"),
       m_focus_button("shell.focus_button"),
       m_style_button("shell.style_button"),
+      m_size_scale("shell.reader.size", Gtk::Orientation::HORIZONTAL),
+      m_hud_size("shell.focus.size", Gtk::Orientation::HORIZONTAL),
       m_menu_button("shell.menu_button"),
       m_body("shell.body", Gtk::Orientation::HORIZONTAL),
       m_rail_scroll("shell.rail_scroll"),
