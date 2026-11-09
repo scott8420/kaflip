@@ -11,7 +11,8 @@
 // form the zip, the URI scheme and the spine all speak, so a link from a
 // chapter maps back to its spine index by plain string compare.
 //
-// The NCX / nav TOC is NOT read yet (s006).
+// s008: the TOC -- the EPUB 3 nav document, else the EPUB 2 NCX (core/Toc).
+#include "core/Toc.hpp"
 #include "core/Zip.hpp"
 
 #include <optional>
@@ -59,6 +60,12 @@ public:
     // id or file name says "cover".
     const std::string& cover_path() const { return m_cover; }
 
+    // s008: the table of contents, flat in document order (core/Toc), each
+    // entry's spine index filled in. Empty = the book has none we can read.
+    const std::vector<TocEntry>& toc() const { return m_toc; }
+    // "nav" or "ncx" or "" -- where the TOC came from (logs, selftest).
+    const std::string& toc_source() const { return m_toc_source; }
+
     // Spine index of a zip path (fragment ignored), or -1.
     int spine_index_of(const std::string& path) const;
 
@@ -76,6 +83,8 @@ private:
     BookMeta                  m_meta;
     std::vector<ManifestItem> m_manifest;
     std::vector<SpineItem>    m_spine;
+    std::vector<TocEntry>     m_toc;          // s008
+    std::string               m_toc_source;   // s008
     mutable std::string       m_error;
 };
 

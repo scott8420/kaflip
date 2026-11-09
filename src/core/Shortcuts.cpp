@@ -145,6 +145,7 @@ const std::vector<ShortcutSpec>& shortcut_registry() {
         {"Reading", "", {}, "Esc", "Leave focus mode"},
         {"Reading", "", {}, "Click left / right third", "Turn the page (focus mode)"},
         {"Reading", "", {}, "Click the middle  /  move the mouse", "Show the bar (focus mode)"},
+        {"Reading", "win.contents",      {"F9"}, "", "Contents -- jump to a chapter"},   // s008
         {"Reading", "win.chapter-next",  {"<Ctrl>Page_Down"}, "", "Next chapter"},
         {"Reading", "win.chapter-prev",  {"<Ctrl>Page_Up"},   "", "Previous chapter"},
         {"Reading", "", {}, "Click a link", "Follow it -- inside the book, or out to your browser"},

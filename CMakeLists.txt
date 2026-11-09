@@ -36,6 +36,7 @@ add_library(kaflip_core STATIC
     # -> OPF -> metadata / manifest / spine, and the kaflip-book: URI mapping.
     src/core/Zip.cpp
     src/core/Epub.cpp
+    src/core/Toc.cpp
     # s003 -- the page-turn rules, the column stylesheet, the page's report.
     src/core/Paging.cpp
     # s004 -- the one list of rail pages (ported from Trails).

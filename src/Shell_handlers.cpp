@@ -9,6 +9,9 @@
 #include <gtkmm/filedialog.h>
 #include <gtkmm/filefilter.h>
 #include <gtkmm/popover.h>
+#include <gtkmm/listboxrow.h>   // s008: Contents
+#include <gtkmm/adjustment.h>
+#include <algorithm>
 #include <glibmm/main.h>
 #include <giomm/liststore.h>
 #include <giomm/asyncresult.h>
@@ -129,6 +132,98 @@ void Shell::on_library_menu(Gtk::Widget& tile, const std::string& path, double x
         Glib::signal_idle().connect_once([pop] { pop->unparent(); });
     });
     pop->popup();
+}
+
+// s008: Contents. A popover list built per open (the library menu's shape),
+// hanging off whichever Contents button is showing: the bar's, or the focus
+// HUD's (the HUD stays up while it is open). The row the reader is in is
+// selected and scrolled to. A click (or Enter) jumps -- a view position, like
+// a page turn, so not an undo step -- and the keyboard goes back to the page.
+void Shell::on_contents() {  // handler
+    const core::Book* b = m_reader.book();
+    if (!b || b->toc().empty() || m_toc_open) return;
+    Gtk::Widget* anchor = &m_toc_button;
+    if (m_focus) {
+        anchor = m_hud_toc;
+        m_hud_timer.disconnect();
+        show_hud(true);
+    } else if (m_stack.get_visible_child_name() != "reader") {
+        select_tab("reader");
+    }
+    if (!anchor) return;
+
+    auto pop = Gtk::make_managed<Gtk::Popover>();
+    pop->add_css_class("toc-popover");
+    auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
+    auto head = Gtk::make_managed<Gtk::Label>("Contents");
+    head->add_css_class("toc-head");
+    head->set_xalign(0.0f);
+    box->append(*head);
+    auto scroll = Gtk::make_managed<Gtk::ScrolledWindow>();
+    scroll->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
+    scroll->set_propagate_natural_height(true);
+    scroll->set_max_content_height(std::max(240, get_height() * 2 / 3));
+    scroll->set_size_request(340, -1);
+    auto list = Gtk::make_managed<Gtk::ListBox>();
+    list->add_css_class("toc-list");
+    list->set_selection_mode(Gtk::SelectionMode::SINGLE);
+    list->set_activate_on_single_click(true);
+    const auto& toc = b->toc();
+    const int here = core::toc_index_for(toc, m_reader.chapter());
+    Gtk::ListBoxRow* here_row = nullptr;
+    for (std::size_t i = 0; i < toc.size(); ++i) {
+        const auto& e = toc[i];
+        auto row = Gtk::make_managed<Gtk::ListBoxRow>();
+        auto lab = Gtk::make_managed<Gtk::Label>(e.title.empty() ? "(untitled)" : e.title);
+        lab->set_xalign(0.0f);
+        lab->set_ellipsize(Pango::EllipsizeMode::END);
+        lab->set_margin_start(10 + 18 * std::min(e.depth, 4));
+        lab->set_margin_end(10);
+        lab->set_margin_top(5);
+        lab->set_margin_bottom(5);
+        if (e.depth == 0) lab->add_css_class("toc-top");
+        row->set_child(*lab);
+        row->set_tooltip_text(e.title);
+        if (e.spine < 0) {   // a heading, or a link outside the book
+            row->set_activatable(false);
+            row->set_selectable(false);
+            lab->add_css_class("dim-label");
+        }
+        list->append(*row);
+        if (static_cast<int>(i) == here) here_row = row;
+    }
+    list->signal_row_activated().connect([this, pop, b](Gtk::ListBoxRow* row) {
+        const int i = row->get_index();
+        if (i < 0 || static_cast<std::size_t>(i) >= b->toc().size()) return;
+        const auto e = b->toc()[static_cast<std::size_t>(i)];   // copy: the jump may repaint
+        pop->popdown();
+        m_reader.go_to_path(e.path, e.fragment);
+    });
+    scroll->set_child(*list);
+    box->append(*scroll);
+    pop->set_child(*box);
+    pop->set_parent(*anchor);
+    pop->set_position(Gtk::PositionType::TOP);
+    m_toc_open = true;
+    pop->signal_closed().connect([this, pop] {
+        m_toc_open = false;
+        if (m_focus) poke_hud();
+        m_reader.focus_page();
+        Glib::signal_idle().connect_once([pop] { pop->unparent(); });
+    });
+    pop->popup();
+    if (here_row) {
+        list->select_row(*here_row);
+        // Scroll to it once the list has its size.
+        Glib::signal_idle().connect_once([scroll, here_row] {
+            Gtk::Allocation a = here_row->get_allocation();
+            auto adj = scroll->get_vadjustment();
+            adj->set_value(std::max(0.0, a.get_y() - adj->get_page_size() / 3));
+            here_row->grab_focus();
+        });
+    } else {
+        list->grab_focus();
+    }
 }
 
 void Shell::on_focus_mode() { set_focus_mode(!m_focus); }  // handler: F11 (s005)

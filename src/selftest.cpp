@@ -559,6 +559,108 @@ int main() {
         check("tabs: the Library is first", !core::tab_registry().empty() && core::tab_registry().front().id == "library");
         check("tabs: find_tab", core::find_tab("recents") && !core::find_tab("nope"));
     }
+    // ── TOC: EPUB 3 nav, EPUB 2 NCX, which entry am I in (s008) ──────────────
+    {
+        std::cout << "\n-- toc --\n";
+        const std::string nav =
+            "<?xml version=\"1.0\"?><html xmlns=\"http://www.w3.org/1999/xhtml\" "
+            "xmlns:epub=\"http://www.idpf.org/2007/ops\"><body>"
+            "<nav epub:type=\"landmarks\"><ol><li><a href=\"Text/ch2.xhtml\">Start</a></li></ol></nav>"
+            "<nav epub:type=\"toc\" id=\"toc\"><h1>Contents</h1><ol>"
+            "<li><a href=\"Text/ch%201.xhtml\">  Chapter\n   <em>One</em> </a>"
+            "  <ol><li><a href=\"Text/ch%201.xhtml#s2\">A part</a></li></ol></li>"
+            "<li><span>Part Two</span><ol>"
+            "<li><a href=\"Text/ch2.xhtml#top%20x\">Chapter Two</a></li></ol></li>"
+            "<li><a href=\"http://example.com/\">Web</a></li>"
+            "</ol></nav></body></html>";
+        const auto t = core::parse_nav(nav, "OEBPS/nav.xhtml");
+        check("toc nav: the toc nav, not landmarks", t.size() == 5 && t[0].title == "Chapter One",
+              t.empty() ? "empty" : t[0].title);
+        if (t.size() == 5) {
+            check("toc nav: href resolved + decoded, no fragment",
+                  t[0].path == "OEBPS/Text/ch 1.xhtml" && t[0].fragment.empty(), t[0].path);
+            check("toc nav: nested -> depth 1, fragment kept",
+                  t[1].depth == 1 && t[1].fragment == "s2" && t[1].title == "A part");
+            check("toc nav: a span heading has no path", t[2].title == "Part Two" && t[2].path.empty());
+            check("toc nav: fragment percent-decoded", t[3].fragment == "top x" && t[3].depth == 1, t[3].fragment);
+            check("toc nav: a web link is not a book path", t[4].path.empty());
+        }
+        check("toc nav: malformed -> empty", core::parse_nav("<html><nav>", "x").empty());
+        check("toc nav: no nav -> empty", core::parse_nav("<html><body/></html>", "x").empty());
+        const std::string untyped = "<html><body><nav><ul><li><a href=\"a.xhtml\">A</a></li></ul></nav></body></html>";
+        check("toc nav: an untyped nav, ul -- still read", core::parse_nav(untyped, "t/n.xhtml").size() == 1 &&
+              core::parse_nav(untyped, "t/n.xhtml")[0].path == "t/a.xhtml");
+
+        const std::string ncx =
+            "<?xml version=\"1.0\"?><ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\">"
+            "<head/><docTitle><text>T</text></docTitle><navMap>"
+            "<navPoint id=\"n1\" playOrder=\"1\"><navLabel><text>One</text></navLabel>"
+            "<content src=\"Text/ch%201.xhtml\"/>"
+            "<navPoint id=\"n2\" playOrder=\"2\"><navLabel><text> One, part\n two </text></navLabel>"
+            "<content src=\"Text/ch%201.xhtml#p2\"/></navPoint></navPoint>"
+            "<navPoint id=\"n3\" playOrder=\"3\"><navLabel><text>Two</text></navLabel>"
+            "<content src=\"Text/ch2.xhtml\"/></navPoint>"
+            "</navMap></ncx>";
+        const auto n = core::parse_ncx(ncx, "OEBPS/toc.ncx");
+        check("toc ncx: three points in order", n.size() == 3 && n[0].title == "One" && n[2].title == "Two");
+        if (n.size() == 3)
+            check("toc ncx: nested depth, fragment, collapsed title",
+                  n[1].depth == 1 && n[1].fragment == "p2" && n[1].title == "One, part two" &&
+                  n[1].path == "OEBPS/Text/ch 1.xhtml", n[1].title);
+        check("toc ncx: malformed -> empty", core::parse_ncx("<ncx><navMap>", "x").empty());
+
+        // The Book picks the nav, fills spine indexes.
+        auto with = [](const std::string& opf, const std::vector<ZEnt>& extra) {
+            std::vector<ZEnt> v;
+            for (auto& e : good_epub())
+                if (e.name != "OEBPS/content.opf" && e.name != "OEBPS/nav.xhtml") v.push_back(e);
+            v.push_back({"OEBPS/content.opf", opf, 8});
+            for (auto& e : extra) v.push_back(e);
+            return v;
+        };
+        core::Book b;
+        b.open_bytes(make_zip(with(kOpf, {{"OEBPS/nav.xhtml", nav, 8}})));
+        check("toc book: EPUB 3 reads the nav", b.toc_source() == "nav" && b.toc().size() == 5, b.toc_source());
+        if (b.toc().size() == 5)
+            check("toc book: spine indexes (ch1=0, ch2=1, heading -1)",
+                  b.toc()[0].spine == 0 && b.toc()[1].spine == 0 && b.toc()[2].spine == -1 &&
+                  b.toc()[3].spine == 1 && b.toc()[4].spine == -1);
+
+        const std::string opf2 =
+            "<package version=\"2.0\"><metadata/><manifest>"
+            "<item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>"
+            "<item id=\"c1\" href=\"Text/ch%201.xhtml\" media-type=\"application/xhtml+xml\"/>"
+            "<item id=\"c2\" href=\"Text/ch2.xhtml\" media-type=\"application/xhtml+xml\"/>"
+            "</manifest><spine toc=\"ncx\"><itemref idref=\"c1\"/><itemref idref=\"c2\"/></spine></package>";
+        core::Book b2;
+        b2.open_bytes(make_zip(with(opf2, {{"OEBPS/toc.ncx", ncx, 8}})));
+        check("toc book: EPUB 2 reads the NCX", b2.toc_source() == "ncx" && b2.toc().size() == 3, b2.toc_source());
+        // A nav that lists nothing falls through to the NCX.
+        const std::string opf3 =
+            "<package version=\"3.0\"><metadata/><manifest>"
+            "<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>"
+            "<item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>"
+            "<item id=\"c1\" href=\"Text/ch%201.xhtml\" media-type=\"application/xhtml+xml\"/>"
+            "</manifest><spine><itemref idref=\"c1\"/></spine></package>";
+        core::Book b3;
+        b3.open_bytes(make_zip(with(opf3, {{"OEBPS/nav.xhtml", "<html><body/></html>", 8},
+                                           {"OEBPS/toc.ncx", ncx, 8}})));
+        check("toc book: empty nav -> the NCX (no spine toc= needed)", b3.toc_source() == "ncx", b3.toc_source());
+        core::Book b4;
+        b4.open_bytes(make_zip(good_epub()));   // nav.xhtml is "<html/>"
+        check("toc book: no TOC still opens, toc empty", b4.error().empty() && b4.toc().empty());
+
+        // Which entry am I in?
+        std::vector<core::TocEntry> w(4);
+        w[0].spine = 1; w[1].spine = 1; w[2].spine = 3; w[3].spine = -1;
+        check("toc where: the cover (before any entry) -> -1", core::toc_index_for(w, 0) == -1);
+        check("toc where: first entry INTO the chapter", core::toc_index_for(w, 1) == 0);
+        check("toc where: an unlisted file keeps the chapter before", core::toc_index_for(w, 2) == 0);
+        check("toc where: listed", core::toc_index_for(w, 3) == 2);
+        check("toc where: past the end -> last chapter", core::toc_index_for(w, 9) == 2);
+        check("toc where: no chapter -> -1", core::toc_index_for(w, -1) == -1);
+        check("toc: collapse_ws", core::collapse_ws("  a \n\t b  c ") == "a b c");
+    }
     // ── EPUB covers (s006) ────────────────────────────────────────────────────
     {
         std::cout << "\n-- covers --\n";

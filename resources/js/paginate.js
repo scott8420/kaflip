@@ -13,6 +13,7 @@
     const root = () => document.scrollingElement || document.documentElement;
     const W = () => window.innerWidth;
     let page = 0, count = 1, wantLast = false, sent = '';
+    let wantId = '';   // s008: an anchor we were sent to -- kept through relayouts
 
     // The last column ends one right margin short of a full page, and WebKit
     // clamps scrollLeft to the overflow -- so without help the last page sits
@@ -50,6 +51,7 @@
     }
     function go(n) {
         wantLast = false;
+        wantId = '';
         count = measure();
         page = Math.min(Math.max(0, n | 0), count - 1);
         show();
@@ -61,6 +63,7 @@
     // The layout changed (window resized, an image or font arrived): keep the
     // same place in the chapter, as a fraction, or the last page if asked.
     function relayout() {
+        if (wantId && toId(wantId)) return;   // s008: an image above it arrived
         const old = count;
         count = measure();
         if (wantLast) page = count - 1;
@@ -68,15 +71,22 @@
         else page = Math.min(page, count - 1);
         show();
     }
-    // An anchor (#id) -> the page its element starts on.
-    function toHash() {
-        const id = decodeURIComponent(location.hash.slice(1));
+    // An anchor (an element id) -> the page its element starts on. s008: the
+    // id is remembered until a turn, so a late image or font that pushes the
+    // element onto another page takes us with it.
+    function toId(id) {
         if (!id) return false;
         const el = document.getElementById(id) || document.getElementsByName(id)[0];
         if (!el) return false;
         const x = el.getBoundingClientRect().left + root().scrollLeft;
-        go(Math.floor(x / W()));
+        go(Math.floor((x + 1) / W()));
+        wantId = id;
         return true;
+    }
+    function toHash() {
+        let id = location.hash.slice(1);
+        try { id = decodeURIComponent(id); } catch (e) { /* keep it raw */ }
+        return toId(id);
     }
 
     window.kaflip = {
@@ -86,6 +96,7 @@
         first: () => go(0),
         last: last,
         relayout: relayout,
+        anchor: (id) => { if (!toId(id)) go(0); },   // s008: a TOC entry in this chapter
     };
 
     // Anything else that scrolls (WebKit's own anchor jump, a selection drag)
@@ -94,6 +105,7 @@
         const want = page * W();
         if (Math.abs(root().scrollLeft - want) > 1) {
             wantLast = false;
+            wantId = '';
             page = Math.min(Math.max(0, Math.round(root().scrollLeft / W())), count - 1);
             show();
         }

@@ -35,6 +35,7 @@ Shell::Shell()
       m_reader_page("shell.reader.page", Gtk::Orientation::VERTICAL),
       m_hero("shell.reader.hero", Gtk::Orientation::VERTICAL, 14),
       m_reader_nav("shell.reader.nav", Gtk::Orientation::HORIZONTAL, 6),
+      m_toc_button("shell.reader.contents"),
       m_prev_button("shell.reader.prev"),
       m_chapter_label("shell.reader.chapter"),
       m_next_button("shell.reader.next"),

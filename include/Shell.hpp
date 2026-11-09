@@ -91,6 +91,7 @@ private:
     void on_reader_tap(const std::string& zone); // category: handler: a tap zone in the page (s005)
     void on_add_folder();                        // category: handler: folder chooser -> background scan (s006)
     void on_reading_style();                     // category: handler: open the Reading style window (s007)
+    void on_contents();                          // category: handler: F9 -- the Contents popover, jump on a click (s008)
     void on_library_remove(const std::string& path);   // category: handler: one undo step (s006)
     void on_library_menu(Gtk::Widget& tile, const std::string& path, double x, double y);   // category: handler: right-click a cover (s006)
     void on_recent_open(const std::string& p);   // category: handler: open a recent (parameterised)
@@ -132,6 +133,7 @@ private:
     void apply_style();                           // category: helper: the book sheet from the active style (s007)
     std::string style_file() const;               // category: helper: the XDG config path (s007)
     void set_text_size(int pct, bool merge);      // category: helper: the Reading size, one undo step (s008a)
+    std::string where_title() const;              // category: helper: the TOC title of the chapter in view, or "" (s008)
 
     // Titlebar: brand logo + Open (start), hamburger (end).
     widgets::Button     m_logo_button;   // frameless brand mark; opens About
@@ -183,6 +185,10 @@ private:
     widgets::Box     m_hero;                 // s004: shown instead of the book until one opens
     Reader           m_reader;
     widgets::Box     m_reader_nav;           // horizontal: prev | "3 of 12" | next
+    widgets::Button  m_toc_button;           // s008: Contents (F9)
+    Gtk::Button*     m_hud_toc = nullptr;    // s008: and in the focus HUD (managed)
+    bool             m_toc_open = false;     // s008: the HUD stays while the list is open
+    Glib::RefPtr<Gio::SimpleAction> m_act_toc;   // s008: greyed when the book has no TOC
     widgets::Button  m_prev_button;
     widgets::Label   m_chapter_label;
     widgets::Button  m_next_button;

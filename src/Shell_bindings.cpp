@@ -30,6 +30,7 @@ void Shell::bind_actions() {  // bindings: actions + recents group
     m_act_focus = add_action("focus-mode", sigc::mem_fun(*this, &Shell::on_focus_mode));   // s005
     add_action("add-folder", sigc::mem_fun(*this, &Shell::on_add_folder));                 // s006
     add_action("reading-style", sigc::mem_fun(*this, &Shell::on_reading_style));           // s007
+    m_act_toc = add_action("contents", sigc::mem_fun(*this, &Shell::on_contents));         // s008
     // s008a -- text size from the keyboard: 10% a press, Ctrl+0 back to 100%.
     add_action("text-bigger",  [this] { set_text_size(std::min(220, m_styles.at(core::Styles::kReading).size_pct + 10), false); });
     add_action("text-smaller", [this] { set_text_size(std::max(60,  m_styles.at(core::Styles::kReading).size_pct - 10), false); });

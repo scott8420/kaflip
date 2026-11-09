@@ -205,5 +205,13 @@ window.kaflip headerbar .linked > button { padding: 4px 14px; }
 .reader-nav scale, .focus-hud scale { min-width: 140px; }
 .reader-nav scale trough highlight, .focus-hud scale trough highlight { background-color: #5eead4; }
 .size-small { font-size: 0.8em; font-weight: 700; color: rgba(241,247,248,0.65); }
-.size-big   { font-size: 1.25em; font-weight: 700; color: rgba(241,247,248,0.85); margin-end: 6px; }
+.size-big   { font-size: 1.25em; font-weight: 700; color: rgba(241,247,248,0.85); margin-right: 6px; }
 .reader-nav separator, .focus-hud separator { background-color: rgba(255,255,255,0.12); min-width: 1px; }
+
+/* s008 -- the Contents popover */
+popover.toc-popover > contents { padding: 10px 6px 6px 6px; }
+.toc-head { font-weight: 800; font-size: 1.05em; margin-left: 10px; margin-bottom: 2px; color: #f1f7f8; }
+.toc-list { background-color: transparent; }
+.toc-list row { border-radius: 8px; }
+.toc-list row:selected { background-color: rgba(94,234,212,0.22); color: #ffffff; }
+.toc-list .toc-top { font-weight: 700; }

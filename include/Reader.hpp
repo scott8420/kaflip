@@ -47,6 +47,13 @@ public:
     bool next();
     bool prev();
     bool go_to(int spine_index, core::Land land = core::Land::First);
+    // s008: a TOC entry -- a zip path plus an optional fragment (an element
+    // id). Same chapter: paginate.js moves to the page the element starts on;
+    // another chapter: it loads with #fragment and lands there. false = the
+    // path is not in the spine.
+    bool go_to_path(const std::string& path, const std::string& fragment);
+    // s008: give the page the keyboard (after a popover closes).
+    void focus_page();
 
     // s003 -- pages. The chapter is CSS columns; paginate.js keeps the page and
     // reports it. A turn past either end hands off to the neighbouring linear

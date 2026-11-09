@@ -179,6 +179,8 @@ bool Book::load() {
     m_meta = {};
     m_manifest.clear();
     m_spine.clear();
+    m_toc.clear();
+    m_toc_source.clear();
     m_error.clear();
 
     // 1. container.xml -> the OPF.
@@ -235,7 +237,9 @@ bool Book::load() {
         }
     }
 
+    std::string ncx_id;   // s008: <spine toc="ncx">
     if (const auto sp = child(pkg, "spine")) {
+        ncx_id = sp.attribute("toc").value();
         for (auto n : sp.children()) {
             if (!is(n, "itemref")) continue;
             const std::string idref = n.attribute("idref").value();
@@ -263,6 +267,31 @@ bool Book::load() {
         for (const auto& m : m_manifest)
             if (is_image(m) && (lower(m.id).find("cover") != std::string::npos ||
                                 lower(m.path).find("cover") != std::string::npos)) { m_cover = m.path; break; }
+
+    // s008: the TOC. The nav document first; the NCX if there is no nav or
+    // it lists nothing. A missing or broken TOC never fails the book.
+    for (const auto& m : m_manifest) {
+        if ((" " + m.properties + " ").find(" nav ") == std::string::npos) continue;
+        if (const auto x = m_zip.read(m.path)) {
+            m_toc = parse_nav(*x, m.path);
+            if (!m_toc.empty()) m_toc_source = "nav";
+        }
+        break;
+    }
+    if (m_toc.empty()) {
+        const ManifestItem* ncx = nullptr;
+        for (const auto& m : m_manifest)
+            if (!ncx_id.empty() && m.id == ncx_id) { ncx = &m; break; }
+        if (!ncx)
+            for (const auto& m : m_manifest)
+                if (m.media_type == "application/x-dtbncx+xml") { ncx = &m; break; }
+        if (ncx)
+            if (const auto x = m_zip.read(ncx->path)) {
+                m_toc = parse_ncx(*x, ncx->path);
+                if (!m_toc.empty()) m_toc_source = "ncx";
+            }
+    }
+    for (auto& e : m_toc) e.spine = e.path.empty() ? -1 : spine_index_of(e.path);
     return true;
 }
 

@@ -257,6 +257,35 @@ bool Reader::go_to(int index, core::Land land) {
     return true;
 }
 
+bool Reader::go_to_path(const std::string& path, const std::string& fragment) {
+    if (!m_book) return false;
+    const int index = m_book->spine_index_of(path);
+    if (index < 0) return false;
+    if (fragment.empty()) return go_to(index);
+    // The id goes into JS as a JSON-ish string literal: escape what matters.
+    std::string lit;
+    for (char c : fragment) {
+        if (c == '\\' || c == '\'') lit += '\\';
+        if (c == '\n' || c == '\r') continue;
+        lit += c;
+    }
+    if (index == m_chapter && m_page_count > 0) {
+        if (auto lg = log::get(log::Area::Book)) lg->info("toc -> #{} (this chapter)", fragment);
+        run_js("window.kaflip && window.kaflip.anchor('" + lit + "')");
+        return true;
+    }
+    m_chapter = index;
+    m_land = core::Land::First;
+    m_page = 0;
+    m_page_count = 0;
+    const std::string uri = core::book_uri(m_token, path) + "#" + core::percent_encode_path(fragment);
+    if (auto lg = log::get(log::Area::Book))
+        lg->info("toc -> chapter {}/{} {}", index + 1, chapter_count(), uri);
+    webkit_web_view_load_uri(m_view, uri.c_str());
+    m_changed.emit();
+    return true;
+}
+
 void Reader::on_committed(const std::string& uri) {
     const auto parsed = core::parse_book_uri(uri);
     if (!parsed || !m_book || parsed->token != m_token) return;
@@ -350,6 +379,8 @@ void Reader::set_book_css(const std::string& css, const std::string& page) {
     // Margins, size or the spread may have moved every page boundary.
     if (m_book) run_js("window.kaflip && window.kaflip.relayout()");
 }
+
+void Reader::focus_page() { if (m_view) gtk_widget_grab_focus(GTK_WIDGET(m_view)); }
 
 void Reader::first_page() { if (m_book) run_js("window.kaflip && window.kaflip.first()"); }
 void Reader::last_page()  { if (m_book) run_js("window.kaflip && window.kaflip.last()"); }

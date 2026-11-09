@@ -239,6 +239,7 @@ void Shell::update_reader_ui() {  // helper: title, "3 of 12", grey prev/next
     if (m_act_page_next) m_act_page_next->set_enabled(m_reader.can_turn_forward());   // s003
     if (m_act_page_prev) m_act_page_prev->set_enabled(m_reader.can_turn_back());
     if (m_act_focus) m_act_focus->set_enabled(m_reader.has_book());   // s005
+    if (m_act_toc) m_act_toc->set_enabled(m_reader.book() && !m_reader.book()->toc().empty());   // s008
     const core::Book* b = m_reader.book();
     if (!b) {
         set_title("Ka-flip");
@@ -250,14 +251,33 @@ void Shell::update_reader_ui() {  // helper: title, "3 of 12", grey prev/next
         : b->meta().title;
     set_title(title + " \u2014 Ka-flip");
     // s003: "Chapter 3 of 12  ·  page 4 of 11" (the page part once it reports).
-    std::string where = "Chapter " + std::to_string(m_reader.chapter() + 1) + " of " +
-                        std::to_string(m_reader.chapter_count());
+    // s008: the TOC's title for the chapter when the book has one.
+    std::string where = where_title();
+    if (where.empty())
+        where = "Chapter " + std::to_string(m_reader.chapter() + 1) + " of " +
+                std::to_string(m_reader.chapter_count());
     if (m_reader.page_count() > 0)
         where += "  \u00b7  page " + std::to_string(m_reader.page() + 1) + " of " +
                  std::to_string(m_reader.page_count());
     if (!b->meta().creators.empty()) where = b->meta().creators.front() + "  \u00b7  " + where;
     m_chapter_label.set_text(where);
     m_hud_label.set_text(where);   // s005: the focus HUD says the same
+}
+
+// s008: "The Red Door" -- the TOC entry the reader is in, or "" (no TOC, or
+// the cover before the first entry). Long titles are cut to keep the bar sane.
+std::string Shell::where_title() const {  // helper
+    const core::Book* b = m_reader.book();
+    if (!b) return {};
+    const int i = core::toc_index_for(b->toc(), m_reader.chapter());
+    if (i < 0) return {};
+    std::string t = b->toc()[static_cast<std::size_t>(i)].title;
+    if (g_utf8_strlen(t.c_str(), -1) > 60) {
+        gchar* cut = g_utf8_substring(t.c_str(), 0, 58);
+        t = std::string(cut) + "\u2026";
+        g_free(cut);
+    }
+    return t;
 }
 
 // s004: one place moves between pages -- the stack, the rail's selection and
@@ -449,6 +469,7 @@ void Shell::show_hud(bool on) {  // helper
 void Shell::poke_hud() {  // helper: show, then hide after a pause
     show_hud(true);
     m_hud_timer.disconnect();
+    if (m_toc_open) return;   // s008: the Contents list hangs off the HUD
     m_hud_timer = Glib::signal_timeout().connect([this] {
         show_hud(false);
         return false;
