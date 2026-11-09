@@ -3,14 +3,12 @@
 namespace kaflip::core {
 
 const std::vector<TabSpec>& tab_registry() {
-    // Order = rail order. Registry and Undo are the Cairn demo pages; they go
-    // when Ka-flip's own pages (Library, Contents) arrive.
+    // Order = rail order. (s010: the Cairn demo pages, Registry and Undo, are
+    // gone; the registry dump stays under Diagnostics, Ctrl+D.)
     static const std::vector<TabSpec> kTabs = {
         {"library",  "Library",  "kaflip-tab-library-symbolic",  "tab-library"},   // s006
         {"reader",   "Reader",   "kaflip-tab-reader-symbolic",   "tab-reader"},
         {"recents",  "Recent",   "kaflip-tab-recent-symbolic",   "tab-recent"},
-        {"registry", "Registry", "kaflip-tab-registry-symbolic", "tab-registry"},
-        {"undo",     "Undo",     "kaflip-tab-undo-symbolic",     "tab-undo"},
     };
     return kTabs;
 }

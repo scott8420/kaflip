@@ -978,6 +978,7 @@ int main() {
             core::Styles s2;
             core::StyleJournal jn{s2};
             s2.set_door([&] { return jn.open(); });
+            if (v.prep) v.prep(s2);
             const auto before = s2.to_json();
             v.run(jn, s2);
             const auto after = s2.to_json();
@@ -1006,6 +1007,31 @@ int main() {
                   !core::styles::apply_preset(jn, s3, core::Styles::kReading, "Night"));
             core::Styles back2;
             check("styles: store JSON round-trips", back2.from_json(s3.to_json()) && back2.to_json() == s3.to_json());
+        }
+        {   // s010 -- per-book style
+            core::Styles s4;
+            core::StyleJournal jn{s4};
+            s4.set_door([&] { return jn.open(); });
+            const std::string bk = "/books/a.epub";
+            check("book style: a book follows yours by default",
+                  !s4.has_own(bk) && s4.reading_id(bk) == core::Styles::kReading && s4.reading_id("") == core::Styles::kReading);
+            core::styles::apply_preset(jn, s4, core::Styles::kReading, "Sepia");
+            check("book style: own starts from a copy of yours",
+                  core::styles::own_for_book(jn, s4, bk) && s4.reading_id(bk) == core::Styles::book_id(bk) &&
+                  s4.at(s4.reading_id(bk)) == s4.at(core::Styles::kReading));
+            check("book style: own twice is no step", !core::styles::own_for_book(jn, s4, bk));
+            core::styles::apply_preset(jn, s4, s4.reading_id(bk), "Night");
+            check("book style: editing it leaves yours alone",
+                  s4.at(s4.reading_id(bk)).preset == "Night" && s4.at(core::Styles::kReading).preset == "Sepia" &&
+                  s4.reading_id("/books/b.epub") == core::Styles::kReading);
+            core::Styles back4;
+            check("book style: saved in style.json and read back",
+                  back4.from_json(s4.to_json()) && back4.has_own(bk) && back4.at(back4.reading_id(bk)).preset == "Night");
+            check("book style: follow drops it",
+                  core::styles::follow_mine(jn, s4, bk) && !s4.has_own(bk) && !core::styles::follow_mine(jn, s4, bk));
+            jn.undo();
+            check("book style: undo brings its own style back", s4.has_own(bk) && s4.at(s4.reading_id(bk)).preset == "Night");
+            check("book style: no strays", s4.strays() == 0);
         }
     }
 

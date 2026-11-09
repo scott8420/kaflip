@@ -1,6 +1,5 @@
 #pragma once
 #include "widgets/Widgets.hpp"
-#include "core/Stones.hpp"   // s046: the undo stone's demo model + journal
 #include "Reader.hpp"         // s002: the reading surface
 #include "Scanner.hpp"        // s006: folder scans off the main thread
 #include "core/Library.hpp"   // s006
@@ -101,26 +100,14 @@ private:
     void on_dump_registry();                     // category: handler: print the live widget tree
     void on_about();                             // category: handler: open the About window (dialog-lifetime exemplar)
     void on_shortcuts();   // handler: open the keyboard reference (renders from core::shortcut_registry)
-    // s046 -- the undo stone. Every verb on the Undo page goes through the
-    // journal (core/Undo.hpp); nothing on it writes the model any other way.
+    // Undo / Redo: the library's journal (s010: the stones' page is gone).
     void on_undo();                              // category: handler: Ctrl+Z / menu / button
     void on_redo();                              // category: handler: Ctrl+Shift+Z, Ctrl+Y / menu / button
-    void on_stone_add();                         // category: handler: a new stone below the selection
-    void on_stone_delete();                      // category: handler: delete; the neighbour takes the selection
-    void on_stone_up();                          // category: handler: swap with the one above
-    void on_stone_down();                        // category: handler: swap with the one below
-    void on_stone_rename();                      // category: handler: the name field, on Enter / leaving it
-    void on_stone_size();                        // category: handler: the slider (keys merge; a drag is one step)
-
     // ── helpers ────────────────────────────────────────────────────────────
     void note_recent(const std::string& path);   // category: helper: push onto the list + persist
     void rebuild_recents_menu();                  // category: helper: repaint the submenu
     void rebuild_recents_page();                  // category: helper: repaint the live list page
     std::string recents_file() const;             // category: helper: the XDG path (UI-side resolution)
-    void build_undo_page();                       // category: zone: the Undo page (s046)
-    void queue_stones_repaint();                  // category: helper: one repaint per idle, after the writes
-    void repaint_stones();                        // category: helper: the list + the detail fields from the model
-    void select_stone(const std::string& id, bool keys);   // category: helper: select (+ keyboard) after a repaint
     void update_undo_ui();                        // category: helper: Undo / Redo say what they would do, grey when nothing
     bool focus_is_text() const;                   // category: helper: the keyboard is in a text box (its own Ctrl+Z)
     void update_reader_ui();                      // category: helper: title, "3 of 12", grey prev/next (s002)
@@ -131,7 +118,6 @@ private:
     std::string library_file() const;             // category: helper: the XDG path (s006)
     void queue_library_repaint();                 // category: helper: save + repaint once per idle (s006)
     void rebuild_library();                       // category: helper: the grid from the store (s006)
-    bool stones_active() const;                   // category: helper: Ctrl+Z goes to the stones (Undo page) or the library (s006)
     void apply_style();                           // category: helper: the book sheet from the active style (s007)
     std::string style_file() const;               // category: helper: the XDG config path (s007)
     void set_text_size(int pct, bool merge);      // category: helper: the Reading size, one undo step (s008a)
@@ -167,21 +153,6 @@ private:
     Glib::RefPtr<Gio::Menu>         m_recents_menu;   // live submenu, rebuilt in place
     Glib::RefPtr<Gio::SimpleAction> m_recents_clear;  // held to toggle enabled state
 
-    // s046 -- the undo stone. Declaration order matters: the store before the
-    // journal that holds a reference to it.
-    core::Stones       m_stones;
-    core::StoneJournal m_journal{m_stones};
-    std::string        m_sel;                  // the selected stone's id ("" = none)
-    bool               m_painting = false;     // a repaint sets fields: not a user choice
-    bool               m_repaint_queued = false;
-    bool               m_keys_to_list = false; // after the repaint, give the list the keyboard
-    widgets::Box       m_undo_page;
-    widgets::ListBox   m_stone_list;
-    widgets::Entry     m_stone_name;
-    widgets::Scale     m_stone_size;
-    widgets::Button    m_undo_button;
-    widgets::Button    m_redo_button;
-    widgets::Label     m_undo_said;            // "Undid: Delete “Jade”"
     Glib::RefPtr<Gio::Menu>         m_edit_menu;   // Undo / Redo items, re-labelled live
     Glib::RefPtr<Gio::SimpleAction> m_act_undo, m_act_redo;
 
@@ -228,6 +199,8 @@ private:
     core::Styles                 m_styles;
     core::StyleJournal           m_style_journal{m_styles};
     std::string                  m_style_file;
+    std::string                  m_style_book;   // s010: the open book's path (its own style, or yours)
+    core::Styles::Id reading_id() const { return m_styles.reading_id(m_style_book); }
     bool                         m_style_queued = false;
     std::unique_ptr<StyleDialog> m_style_dialog;
     widgets::Scale               m_size_scale;    // s008a: text size in the nav bar

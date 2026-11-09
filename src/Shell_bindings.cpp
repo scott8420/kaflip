@@ -34,8 +34,8 @@ void Shell::bind_actions() {  // bindings: actions + recents group
     m_act_marks = add_action("bookmarks", sigc::mem_fun(*this, &Shell::on_bookmarks));
     m_act_mark = add_action("bookmark", sigc::mem_fun(*this, &Shell::on_bookmark_toggle));
     // s008a -- text size from the keyboard: 10% a press, Ctrl+0 back to 100%.
-    add_action("text-bigger",  [this] { set_text_size(std::min(220, m_styles.at(core::Styles::kReading).size_pct + 10), false); });
-    add_action("text-smaller", [this] { set_text_size(std::max(60,  m_styles.at(core::Styles::kReading).size_pct - 10), false); });
+    add_action("text-bigger",  [this] { set_text_size(std::min(220, m_styles.at(reading_id()).size_pct + 10), false); });
+    add_action("text-smaller", [this] { set_text_size(std::max(60,  m_styles.at(reading_id()).size_pct - 10), false); });
     add_action("text-reset",   [this] { set_text_size(100, false); });
 
     // s007 -- the styles' door; a change restyles the book live, is saved once
@@ -89,33 +89,9 @@ void Shell::bind_actions() {  // bindings: actions + recents group
     // Now that the group exists, load the persisted list (prunes stale folders).
     m_recents = core::load_recents(m_recents_file);
 
-    // ── s046: the undo stone ────────────────────────────────────────────────
-    // Undo / Redo are held so update_undo_ui can grey them; the stone verbs
-    // are plain actions the page's buttons name.
+    // ── Undo / Redo: held so update_undo_ui can grey them ───────────────────
     m_act_undo = add_action("undo", sigc::mem_fun(*this, &Shell::on_undo));
     m_act_redo = add_action("redo", sigc::mem_fun(*this, &Shell::on_redo));
-    add_action("stone-add",    sigc::mem_fun(*this, &Shell::on_stone_add));
-    add_action("stone-delete", sigc::mem_fun(*this, &Shell::on_stone_delete));
-    add_action("stone-up",     sigc::mem_fun(*this, &Shell::on_stone_up));
-    add_action("stone-down",   sigc::mem_fun(*this, &Shell::on_stone_down));
-
-    // The model <-> journal <-> UI wiring. The store asks the journal whether
-    // the door is open (the one-door guard); the journal reads the selection
-    // and tells the UI when Undo / Redo change; the store's changes repaint.
-    m_stones.set_door([this] { return m_journal.open(); });
-    m_stones.set_on_change([this] { queue_stones_repaint(); });
-    m_journal.set_selection_source([this] {
-        return m_sel.empty() ? std::vector<std::string>{} : std::vector<std::string>{m_sel};
-    });
-    m_journal.set_on_change([this] { update_undo_ui(); });
-    {
-        core::Stones::Loading load(m_stones);   // fixture data: not a user choice
-        for (const char* n : {"Ruby", "Jade", "Onyx", "Opal"}) {
-            const auto id = m_stones.fresh_id();
-            m_stones.put(id, core::Stone{n, 3, m_stones.pos_after({})});
-        }
-    }
-
     // ── Ctrl+Z from ANYWHERE but a text box ─────────────────────────────────
     // NOT an accelerator: a set_accels_for_action chord fires before the
     // focused widget, so it would take Ctrl+Z away from every Entry and

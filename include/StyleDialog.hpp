@@ -38,7 +38,10 @@ public:
     ~StyleDialog() override;
 
     void refresh();                          // the controls + preview from the model
-    void edit(const core::Styles::Id& id);   // which style the controls edit
+    void edit(const core::Styles::Id& id);   // kFocus = focus mode; anything else = reading
+    // s010: the open book. Its row lets it keep its own Reading style; while
+    // it does, the Reading tab edits the book's record. "" = no book.
+    void set_book(const std::string& path, const std::string& title);
 
 private:
     void build();
@@ -50,12 +53,17 @@ private:
 
     core::Styles&       m_styles;
     core::StyleJournal& m_journal;
-    core::Styles::Id    m_id = core::Styles::kReading;
+    bool                m_focus_tab = false;   // s010: which tab (was an id)
+    std::string         m_book, m_book_title;  // s010: the open book
+    core::Styles::Id    id() const;            // the record the controls edit
     bool                m_painting = false;   // refresh() sets controls: not a user choice
 
     Gtk::ToggleButton   m_edit_reading, m_edit_focus;
     Gtk::Button         m_undo, m_redo;
     Gtk::Label          m_said;
+    Gtk::Box            m_book_row{Gtk::Orientation::HORIZONTAL, 8};   // s010
+    Gtk::Label          m_book_label;
+    Gtk::ToggleButton   m_book_follow, m_book_own;
     Gtk::DropDown       m_level, m_paras, m_justify;
     Gtk::FontDialogButton m_body_font, m_head_font;
     Gtk::CheckButton    m_body_book, m_head_book;

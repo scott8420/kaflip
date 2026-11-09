@@ -251,6 +251,9 @@ bool Styles::from_json(const std::string& text) {
     Loading load(*this);
     for (const Id& id : {kReading, kFocus})
         if (doc.contains(id)) put(id, from_j(doc[id]));
+    for (auto it = doc.begin(); it != doc.end(); ++it)   // s010: the books' own
+        if (it.key().rfind("book:", 0) == 0 && it.key().size() > 5 && it.value().is_object())
+            put(it.key(), from_j(it.value()));
     return true;
 }
 
@@ -294,6 +297,19 @@ bool apply_preset(StyleJournal& j, Styles& s, const Styles::Id& id, const std::s
     return set(j, s, id, *p, "Style “" + name + "”");
 }
 
+bool own_for_book(StyleJournal& j, Styles& s, const std::string& path) {
+    if (path.empty() || s.has_own(path)) return false;
+    const Styles::Id id = Styles::book_id(path);
+    const ReadingStyle copy = s.at(Styles::kReading);
+    return j.run("This book keeps its own style", {id}, [&]() { s.put(id, copy); });
+}
+
+bool follow_mine(StyleJournal& j, Styles& s, const std::string& path) {
+    if (!s.has_own(path)) return false;
+    const Styles::Id id = Styles::book_id(path);
+    return j.run("This book follows your style", {id}, [&]() { s.put(id, std::nullopt); });
+}
+
 const std::vector<Verb>& verbs() {
     static const std::vector<Verb> kVerbs = {
         {"apply preset", [](StyleJournal& j, Styles& s) { apply_preset(j, s, Styles::kReading, "Sepia"); }},
@@ -301,6 +317,12 @@ const std::vector<Verb>& verbs() {
              ReadingStyle n = s.at(Styles::kFocus);
              n.size_pct = 130;
              set(j, s, Styles::kFocus, n, "Text size");
+         }},
+        {"own style for a book", [](StyleJournal& j, Styles& s) { own_for_book(j, s, "/gate/book.epub"); }},
+        {"follow my style", [](StyleJournal& j, Styles& s) { follow_mine(j, s, "/gate/book2.epub"); },
+         [](Styles& s) {
+             Styles::Loading l(s);
+             s.put(Styles::book_id("/gate/book2.epub"), s.at(Styles::kReading));
          }},
     };
     return kVerbs;

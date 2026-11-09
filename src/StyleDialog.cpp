@@ -65,17 +65,28 @@ StyleDialog::StyleDialog(core::Styles& styles, core::StyleJournal& journal)
 StyleDialog::~StyleDialog() = default;
 
 void StyleDialog::edit(const core::Styles::Id& id) {
-    m_id = id;
+    m_focus_tab = id == core::Styles::kFocus;
     refresh();
+}
+
+void StyleDialog::set_book(const std::string& path, const std::string& title) {
+    m_book = path;
+    m_book_title = title;
+    refresh();
+}
+
+core::Styles::Id StyleDialog::id() const {
+    return m_focus_tab ? core::Styles::kFocus : m_styles.reading_id(m_book);
 }
 
 template <class F>
 void StyleDialog::change(const std::string& label, const std::string& merge, F&& f) {
     if (m_painting) return;
-    core::ReadingStyle n = m_styles.at(m_id);
+    const core::Styles::Id target = id();
+    core::ReadingStyle n = m_styles.at(target);
     f(n);
     n.preset = "Custom";
-    core::styles::set(m_journal, m_styles, m_id, n, label, merge);
+    core::styles::set(m_journal, m_styles, target, n, label, merge);
 }
 
 void StyleDialog::build() {
@@ -124,10 +135,36 @@ void StyleDialog::build() {
         b->add_css_class("preset-" + p.preset);
         const std::string name = p.preset;
         b->signal_clicked().connect([this, name] {
-            core::styles::apply_preset(m_journal, m_styles, m_id, name);
+            core::styles::apply_preset(m_journal, m_styles, id(), name);
         });
         presets->append(*b);
     }
+    // s010: this book -- follows your style, or keeps its own.
+    m_book_label.set_xalign(0.0f);
+    m_book_label.set_hexpand(true);
+    m_book_label.set_ellipsize(Pango::EllipsizeMode::END);
+    m_book_label.add_css_class("dim-label");
+    auto choice = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 0);
+    choice->add_css_class("linked");
+    choice->add_css_class("book-choice");
+    m_book_follow.set_label("Follows mine");
+    m_book_own.set_label("Its own");
+    m_book_own.set_group(m_book_follow);
+    m_book_follow.set_tooltip_text("This book reads in your Reading style");
+    m_book_own.set_tooltip_text("This book keeps a Reading style of its own, starting from yours");
+    m_book_own.signal_toggled().connect([this] {
+        if (m_painting || !m_book_own.get_active()) return;
+        if (!core::styles::own_for_book(m_journal, m_styles, m_book)) refresh();
+    });
+    m_book_follow.signal_toggled().connect([this] {
+        if (m_painting || !m_book_follow.get_active()) return;
+        if (!core::styles::follow_mine(m_journal, m_styles, m_book)) refresh();
+    });
+    choice->append(m_book_follow);
+    choice->append(m_book_own);
+    m_book_row.append(m_book_label);
+    m_book_row.append(*choice);
+    left->append(m_book_row);
     left->append(*presets);
 
     auto grid = Gtk::make_managed<Gtk::Grid>();
@@ -312,10 +349,17 @@ void StyleDialog::build() {
 }
 
 void StyleDialog::refresh() {
-    const core::ReadingStyle& s = m_styles.at(m_id);
+    const core::ReadingStyle& s = m_styles.at(id());
+    const bool own = m_styles.has_own(m_book);
     m_painting = true;
-    m_edit_reading.set_active(m_id == core::Styles::kReading);
-    m_edit_focus.set_active(m_id == core::Styles::kFocus);
+    m_edit_reading.set_active(!m_focus_tab);
+    m_edit_focus.set_active(m_focus_tab);
+    // s010: the book row -- only on the Reading tab, only with a book open.
+    m_book_row.set_visible(!m_focus_tab && !m_book.empty());
+    m_book_label.set_text("“" + m_book_title + "”");
+    m_book_label.set_tooltip_text(m_book_title);
+    m_book_follow.set_active(!own);
+    m_book_own.set_active(own);
     m_level.set_selected(static_cast<guint>(s.level));
     m_body_book.set_active(s.body_font.empty());
     m_body_font.set_sensitive(!s.body_font.empty());
@@ -338,7 +382,7 @@ void StyleDialog::refresh() {
     m_spread.set_active(s.spread);
     m_painting = false;
     // s008a: focus mode takes text + page from Reading; only colours are its own.
-    const bool focus = m_id == core::Styles::kFocus;
+    const bool focus = m_focus_tab;
     m_focus_note.set_visible(focus);
     for (Gtk::Widget* w : m_reading_only) w->set_sensitive(!focus);
     if (focus) {
@@ -350,7 +394,8 @@ void StyleDialog::refresh() {
     m_redo.set_sensitive(m_journal.can_redo());
     m_undo.set_tooltip_text(m_journal.can_undo() ? "Undo " + m_journal.undo_label() + "  (Ctrl+Z)" : "Nothing to undo");
     m_redo.set_tooltip_text(m_journal.can_redo() ? "Redo " + m_journal.redo_label() + "  (Ctrl+Shift+Z)" : "Nothing to redo");
-    set_title(std::string("Reading style — ") + (m_id == core::Styles::kFocus ? "focus mode" : "reading") +
+    set_title(std::string("Reading style — ") +
+              (m_focus_tab ? std::string("focus mode") : own ? "“" + m_book_title + "”" : std::string("reading")) +
               (s.preset.empty() ? "" : "  ·  " + s.preset));
     update_preview();
 }
@@ -358,9 +403,9 @@ void StyleDialog::refresh() {
 void StyleDialog::update_preview() {
     if (!m_preview) return;
     // s008a: preview what the book will show -- focus mode is effective.
-    const core::ReadingStyle s = m_id == core::Styles::kFocus
-        ? core::focus_effective(m_styles.at(core::Styles::kReading), m_styles.at(core::Styles::kFocus))
-        : m_styles.at(m_id);
+    const core::ReadingStyle s = m_focus_tab
+        ? core::focus_effective(m_styles.at(m_styles.reading_id(m_book)), m_styles.at(core::Styles::kFocus))
+        : m_styles.at(id());
     // Not paginated: the style alone, with the margins as padding.
     const std::string html =
         "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" + core::style_css(s) +

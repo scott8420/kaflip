@@ -22,8 +22,6 @@
     <file preprocess="xml-stripblanks" alias="kaflip-tab-library-symbolic.svg">icons/scalable/apps/kaflip-tab-library-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="kaflip-tab-reader-symbolic.svg">icons/scalable/apps/kaflip-tab-reader-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="kaflip-tab-recent-symbolic.svg">icons/scalable/apps/kaflip-tab-recent-symbolic.svg</file>
-    <file preprocess="xml-stripblanks" alias="kaflip-tab-registry-symbolic.svg">icons/scalable/apps/kaflip-tab-registry-symbolic.svg</file>
-    <file preprocess="xml-stripblanks" alias="kaflip-tab-undo-symbolic.svg">icons/scalable/apps/kaflip-tab-undo-symbolic.svg</file>
   </gresource>
   <!-- s004: the skin (Trails' look) -->
   <gresource prefix="/io/github/scott8420/Kaflip">

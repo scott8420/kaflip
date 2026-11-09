@@ -80,6 +80,12 @@ public:
     using Value = ReadingStyle;
     static inline const Id kReading = "reading";
     static inline const Id kFocus   = "focus";
+    // s010: a book that keeps its own Reading style has a record "book:<path>";
+    // no record = the book follows yours. Focus mode stays one for all books.
+    static Id book_id(const std::string& path) { return "book:" + path; }
+    bool has_own(const std::string& path) const { return !path.empty() && m_items.count(book_id(path)) > 0; }
+    // The record that styles this book's reading: its own, else "reading".
+    Id reading_id(const std::string& path) const { return has_own(path) ? book_id(path) : kReading; }
 
     Styles();   // defaults: reading = Day, focus = Night
 
@@ -118,10 +124,16 @@ bool set(StyleJournal& j, Styles& s, const Styles::Id& id, const ReadingStyle& n
          const std::string& label, const std::string& merge_key = {});
 // One step: a named preset, whole.
 bool apply_preset(StyleJournal& j, Styles& s, const Styles::Id& id, const std::string& name);
+// s010 -- per-book style, one step each. own: the book starts from a copy of
+// your Reading style (false: it already has its own, or no path). follow: the
+// book's own style is dropped and it follows yours again (false: it had none).
+bool own_for_book(StyleJournal& j, Styles& s, const std::string& path);
+bool follow_mine(StyleJournal& j, Styles& s, const std::string& path);
 
 struct Verb {
     std::string name;
     std::function<void(StyleJournal&, Styles&)> run;
+    std::function<void(Styles&)> prep = {};   // s010: state the verb needs, loaded (not a step)
 };
 const std::vector<Verb>& verbs();   // the gate's table
 }  // namespace styles

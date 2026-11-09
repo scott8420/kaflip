@@ -22,8 +22,6 @@
 @define-color c_library  #d2c8f7;
 @define-color c_reader   #74decd;
 @define-color c_recent   #f1bf8c;
-@define-color c_registry #94d3f1;
-@define-color c_undo     #f6b8c0;
 
 /* ── the window ─────────────────────────────────────────────────────────── */
 window.kaflip { background-color: #14262a; color: #f1f7f8; }
@@ -51,14 +49,6 @@ window.kaflip.page-recents {
   background-image: radial-gradient(circle at 75% 15%, rgba(203,151,108,0.20), transparent 55%),
                     linear-gradient(160deg, #34271f 0%, #4a3429 55%, #211814 100%);
 }
-window.kaflip.page-registry {
-  background-image: radial-gradient(circle at 75% 15%, rgba(104,170,200,0.18), transparent 55%),
-                    linear-gradient(160deg, #1c2933 0%, #273d4b 55%, #151e26 100%);
-}
-window.kaflip.page-undo {
-  background-image: radial-gradient(circle at 75% 15%, rgba(217,147,157,0.18), transparent 55%),
-                    linear-gradient(160deg, #352127 0%, #4c2e37 55%, #211519 100%);
-}
 /* Focus mode: the gradient goes nearly black so only the page glows. */
 window.kaflip.focus {
   background-image: radial-gradient(circle at 50% 40%, rgba(87,170,160,0.10), transparent 60%),
@@ -80,8 +70,6 @@ window.kaflip.focus {
 .tab-library .rail-icon  { color: @c_library; }
 .tab-reader .rail-icon   { color: @c_reader; }
 .tab-recent .rail-icon   { color: @c_recent; }
-.tab-registry .rail-icon { color: @c_registry; }
-.tab-undo .rail-icon     { color: @c_undo; }
 
 /* ── pages and cards ────────────────────────────────────────────────────── */
 .page { padding: 24px; background: transparent; }
@@ -147,6 +135,7 @@ window.kaflip .page button.text-button, window.kaflip .hero button.text-button {
 }
 window.kaflip .page button.text-button:hover, window.kaflip .hero button.text-button:hover { background: rgba(255,255,255,0.14); }
 window.kaflip .page button.text-button:disabled { opacity: 0.4; }
+window.kaflip .page .book-choice > button.text-button:checked { background-color: rgba(94,234,212,0.24); border-color: rgba(94,234,212,0.65); color: #ffffff; }  /* s010: the book row */
 window.kaflip button.suggested-action, window.kaflip .hero button.text-button.suggested-action,
 window.kaflip .page button.text-button.suggested-action {
   border-radius: 9999px; padding: 8px 22px; border: none; color: #062a2e; font-weight: 700;

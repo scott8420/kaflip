@@ -104,6 +104,10 @@ void Shell::on_reading_style() {  // handler
         m_style_dialog = std::make_unique<StyleDialog>(m_styles, m_style_journal);
         m_style_dialog->set_transient_for(*this);
     }
+    // s010: the book on screen, so the window can give it its own style.
+    if (const core::Book* b = m_reader.book())
+        m_style_dialog->set_book(m_style_book, b->meta().title.empty()
+            ? std::filesystem::path(m_style_book).stem().string() : b->meta().title);
     m_style_dialog->edit(m_focus ? core::Styles::kFocus : core::Styles::kReading);
     m_style_dialog->present();
 }
@@ -416,84 +420,22 @@ void Shell::on_about() {  // handler: open the About window (dialog-lifetime exe
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// s046 -- the undo stone's handlers. Each verb is ONE call into core::stones
-// (which goes through the journal) and then says where the selection goes.
-// None of them writes m_stones directly: the selftest's gate would not see a
-// handler that did, so the rule is kept here by hand -- handlers call verbs.
+// Undo / Redo -- the library's journal (s010: the stones' page is gone).
 // ─────────────────────────────────────────────────────────────────────────────
 void Shell::on_undo() {  // handler: take the last step back
-    if (!stones_active()) {   // s006: the library's journal, everywhere but the Undo page
-        const auto r = m_lib_journal.undo();
-        if (!r.done) return;
-        m_lib_said.set_text("Undid: " + r.label);
-        m_lib_said.set_visible(true);
-        if (auto lg = log::get(log::Area::Library)) lg->info("undo: {}", r.label);
-        return;
-    }
-    const auto r = m_journal.undo();
+    const auto r = m_lib_journal.undo();
     if (!r.done) return;
-    m_sel = r.selection.empty() ? std::string{} : r.selection.front();
-    m_undo_said.set_text("Undid: " + r.label);
-    select_stone(m_sel, true);
-    if (auto lg = log::get(log::Area::Shell)) lg->info("undo: {}", r.label);
+    m_lib_said.set_text("Undid: " + r.label);
+    m_lib_said.set_visible(true);
+    if (auto lg = log::get(log::Area::Library)) lg->info("undo: {}", r.label);
 }
 
 void Shell::on_redo() {  // handler: put the undone step back
-    if (!stones_active()) {   // s006
-        const auto r = m_lib_journal.redo();
-        if (!r.done) return;
-        m_lib_said.set_text("Redid: " + r.label);
-        m_lib_said.set_visible(true);
-        if (auto lg = log::get(log::Area::Library)) lg->info("redo: {}", r.label);
-        return;
-    }
-    const auto r = m_journal.redo();
+    const auto r = m_lib_journal.redo();
     if (!r.done) return;
-    m_sel = r.selection.empty() ? std::string{} : r.selection.front();
-    m_undo_said.set_text("Redid: " + r.label);
-    select_stone(m_sel, true);
-    if (auto lg = log::get(log::Area::Shell)) lg->info("redo: {}", r.label);
-}
-
-void Shell::on_stone_add() {  // handler: a new stone just below the selection
-    const auto id = core::stones::add(m_journal, m_stones, "Stone", m_sel);
-    m_journal.reselect({id});
-    m_sel = id;
-    select_stone(id, false);
-    m_stone_name.grab_focus();   // name it next -- the field keeps its own Ctrl+Z
-}
-
-void Shell::on_stone_delete() {  // handler: delete; the neighbour takes the selection
-    if (m_sel.empty()) return;
-    const auto next = core::stones::neighbour(m_stones, m_sel);
-    if (!core::stones::remove(m_journal, m_stones, m_sel)) return;
-    m_sel = next;
-    m_journal.reselect(next.empty() ? std::vector<std::string>{} : std::vector<std::string>{next});
-    select_stone(next, true);   // the KEYBOARD goes with it: the next Ctrl+Z lands
-}
-
-void Shell::on_stone_up() {  // handler
-    if (!m_sel.empty() && core::stones::move_up(m_journal, m_stones, m_sel)) select_stone(m_sel, true);
-}
-
-void Shell::on_stone_down() {  // handler
-    if (!m_sel.empty() && core::stones::move_down(m_journal, m_stones, m_sel)) select_stone(m_sel, true);
-}
-
-void Shell::on_stone_rename() {  // handler: Enter in the name field, or leaving it
-    if (m_painting || m_sel.empty()) return;
-    const auto v = m_stones.get(m_sel);
-    const std::string name = m_stone_name.get_text();
-    if (v && v->name != name) core::stones::rename(m_journal, m_stones, m_sel, name);
-}
-
-void Shell::on_stone_size() {  // handler: the slider moved
-    if (m_painting || m_sel.empty()) return;
-    const int n = static_cast<int>(m_stone_size.get_value() + 0.5);
-    // Mid-drag the gesture is open and this is just a write inside it; by
-    // keys or the wheel it is a step that merges with the presses before it.
-    if (m_journal.in_gesture()) core::stones::drag_to(m_journal, m_stones, m_sel, n);
-    else                        core::stones::resize(m_journal, m_stones, m_sel, n);
+    m_lib_said.set_text("Redid: " + r.label);
+    m_lib_said.set_visible(true);
+    if (auto lg = log::get(log::Area::Library)) lg->info("redo: {}", r.label);
 }
 
 }  // namespace kaflip

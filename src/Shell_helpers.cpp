@@ -17,6 +17,7 @@
 #include <gtkmm/listboxrow.h>
 #include "core/Tabs.hpp"
 #include "Covers.hpp"
+#include "StyleDialog.hpp"
 #include "core/Progress.hpp"   // s009
 #include <gtkmm/drawingarea.h>
 #include <cairomm/context.h>
@@ -121,81 +122,19 @@ void Shell::rebuild_recents_page() {  // helper: repaint the live list page
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// s046 -- the undo stone's helpers.
+// s046 -- Undo / Redo.
 // ─────────────────────────────────────────────────────────────────────────────
-
-// One repaint per idle, AFTER the writes that caused it. A verb can write
-// several records (a move writes two); repainting per write would rebuild the
-// list mid-verb, and a row rebuilt under a live click or a focused row is torn
-// down (jot s045: "open UI after the rebuild you caused").
-void Shell::queue_stones_repaint() {  // helper
-    if (m_repaint_queued) return;
-    m_repaint_queued = true;
-    Glib::signal_idle().connect_once([this]() {
-        m_repaint_queued = false;
-        repaint_stones();
-    });
-}
-
-// The list and the detail fields, from the model. Setting a field here is not a
-// user choice: m_painting keeps the field's own signal from writing it back.
-void Shell::repaint_stones() {  // helper
-    m_painting = true;
-    while (auto* c = m_stone_list.get_first_child()) m_stone_list.remove(*c);
-    Gtk::ListBoxRow* chosen = nullptr;
-    for (const auto& id : m_stones.ids()) {
-        const auto v = m_stones.get(id);
-        auto row = Gtk::make_managed<Gtk::ListBoxRow>();
-        row->set_name(id);   // the row carries its stone's id
-        auto label = Gtk::make_managed<Gtk::Label>(
-            v->name + "   ·   size " + std::to_string(v->size));
-        label->set_xalign(0.0f);
-        label->set_margin(6);
-        row->set_child(*label);
-        m_stone_list.append(*row);
-        if (id == m_sel) chosen = row;
-    }
-    if (chosen) m_stone_list.select_row(*chosen);
-    else        m_stone_list.unselect_all();
-
-    const auto v = m_sel.empty() ? std::nullopt : m_stones.get(m_sel);
-    m_stone_name.set_sensitive(v.has_value());
-    m_stone_size.set_sensitive(v.has_value());
-    // Never overwrite a field the user is typing in.
-    if (!m_stone_name.has_focus() || !v) m_stone_name.set_text(v ? v->name : std::string{});
-    if (!m_journal.in_gesture()) m_stone_size.set_value(v ? v->size : 1);
-    m_painting = false;
-
-    if (m_keys_to_list) {
-        m_keys_to_list = false;
-        if (chosen) chosen->grab_focus();
-        else        m_stone_list.grab_focus();
-    }
-}
-
-// Select a stone (and, with `keys`, give its row the keyboard) once the
-// repaint the last write queued has run.
-void Shell::select_stone(const std::string& id, bool keys) {  // helper
-    m_sel = id;
-    m_keys_to_list = m_keys_to_list || keys;
-    queue_stones_repaint();
-}
 
 // Undo / Redo say what they would do, and grey when there is nothing: the
 // actions (so buttons and menu items follow), the button tooltips, and the
 // menu's labels -- "Undo Delete “Jade”" names the step before you take it.
 void Shell::update_undo_ui() {  // helper
-    // s006: two journals, one Ctrl+Z -- the Undo page's stones there, the
-    // library everywhere else. The menu and the buttons say which.
-    const bool stones = stones_active();
-    const bool cu = stones ? m_journal.can_undo() : m_lib_journal.can_undo();
-    const bool cr = stones ? m_journal.can_redo() : m_lib_journal.can_redo();
-    if (m_act_undo) m_act_undo->set_enabled(cu);
-    if (m_act_redo) m_act_redo->set_enabled(cr);
-    const std::string u = stones ? m_journal.undo_label() : m_lib_journal.undo_label();
-    const std::string r = stones ? m_journal.redo_label() : m_lib_journal.redo_label();
-    m_undo_button.set_tooltip_text(u.empty() ? "Nothing to undo" : "Undo " + u + "  (Ctrl+Z)");
-    m_redo_button.set_tooltip_text(r.empty() ? "Nothing to redo" : "Redo " + r + "  (Ctrl+Shift+Z)");
+    // s010: one journal behind the window's Ctrl+Z -- the library's (the
+    // style window keeps its own).
+    if (m_act_undo) m_act_undo->set_enabled(m_lib_journal.can_undo());
+    if (m_act_redo) m_act_redo->set_enabled(m_lib_journal.can_redo());
+    const std::string u = m_lib_journal.undo_label();
+    const std::string r = m_lib_journal.redo_label();
     if (m_edit_menu) {
         m_edit_menu->remove_all();
         m_edit_menu->append(u.empty() ? "Undo" : "Undo " + u, "win.undo");
@@ -217,7 +156,13 @@ bool Shell::focus_is_text() const {  // helper
 bool Shell::open_book(const std::string& path) {  // helper: open + remember + repaint
     std::string error;
     save_library_now();   // s008: the book we are leaving keeps its place
+    // s010: the sheet first, so the new book's first page lays out in its style.
+    const std::string was = m_style_book;
+    m_style_book = path;
+    apply_style();
     if (!m_reader.open(path, error, m_library.place(path))) {   // s008: where you left off
+        m_style_book = was;
+        apply_style();
         auto alert = Gtk::AlertDialog::create("Could not open this book");
         alert->set_detail(std::filesystem::path(path).filename().string() + "\n\n" + error);
         alert->show(*this);
@@ -228,6 +173,10 @@ bool Shell::open_book(const std::string& path) {  // helper: open + remember + r
     // not an undo step), with its cover thumbnail made now if it is new.
     if (const core::Book* b = m_reader.book())
         core::library::note_opened(m_library, covers::describe(*b, path));
+    if (m_style_dialog && m_reader.book()) {   // s010: the style window follows the book
+        const std::string& t = m_reader.book()->meta().title;
+        m_style_dialog->set_book(path, t.empty() ? std::filesystem::path(path).stem().string() : t);
+    }
     m_hero.set_visible(false);         // s004: the card replaces the hero
     m_reader.set_visible(true);
     m_reader_nav.set_visible(true);
@@ -357,10 +306,6 @@ void Shell::select_tab(const std::string& id) {  // helper
 // ─────────────────────────────────────────────────────────────────────────────
 std::string Shell::library_file() const {  // helper: the XDG path (UI-side resolution)
     return (std::filesystem::path(Glib::get_user_data_dir()) / "kaflip" / "library.json").string();
-}
-
-bool Shell::stones_active() const {  // helper
-    return m_stack.get_visible_child_name() == "undo";
 }
 
 // One save + one repaint per idle, AFTER the writes (a folder is many puts).
@@ -548,7 +493,8 @@ void Shell::poke_hud() {  // helper: show, then hide after a pause
 // ─────────────────────────────────────────────────────────────────────────────
 void Shell::apply_style() {  // helper: the book sheet from the active style
     // s008a: focus mode = the Reading style with focus mode's colours.
-    const core::ReadingStyle& r = m_styles.at(core::Styles::kReading);
+    // s010: the open book's own style when it keeps one, else yours.
+    const core::ReadingStyle& r = m_styles.at(reading_id());
     const core::ReadingStyle s = m_focus ? core::focus_effective(r, m_styles.at(core::Styles::kFocus)) : r;
     m_reader.set_book_css(core::book_css(s), s.page);
     // The size sliders show the Reading size (the one both modes use).
@@ -565,9 +511,10 @@ std::string Shell::style_file() const {  // helper: XDG config (a setting, not d
 // s008a -- text size from the bar, the HUD or Ctrl +/-/0: the Reading
 // style's size, one undo step per drag (merged), in the style journal.
 void Shell::set_text_size(int pct, bool merge) {  // helper
-    core::ReadingStyle n = m_styles.at(core::Styles::kReading);
+    const core::Styles::Id id = reading_id();   // s010: the book's own, or yours
+    core::ReadingStyle n = m_styles.at(id);
     n.size_pct = pct;
-    core::styles::set(m_style_journal, m_styles, core::Styles::kReading, n, "Text size",
+    core::styles::set(m_style_journal, m_styles, id, n, "Text size",
                       merge ? "size" : "");
 }
 

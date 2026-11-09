@@ -47,8 +47,7 @@ AboutWindow::AboutWindow(Gtk::Window& parent) {
     tagline->add_css_class("dim-label");
     page->append(*tagline);
 
-    // The window labels itself with the paradigms it embodies -- honest for a
-    // seed (self-documenting), where a product About box would carry chrome.
+    // s010: what Ka-flip does (the Cairn seed's self-description is retired).
     auto* note = Gtk::make_managed<widgets::Label>(widgets::unregistered, "shell.about.note");
     note->set_wrap(true);
     note->set_justify(Gtk::Justification::CENTER);
@@ -56,10 +55,9 @@ AboutWindow::AboutWindow(Gtk::Window& parent) {
     note->set_margin_top(6);
     note->add_css_class("dim-label");
     note->set_markup(
-        "This is the dialog-lifetime exemplar: a custom <tt>Gtk::Window</tt> "
-        "(<tt>Gtk::AboutDialog</tt> is deprecated in GTK4), opened as a "
-        "hide-on-close singleton. The logo above is a symbolic icon resolved "
-        "from the compiled-in gresource bundle.");
+        "Reads EPUB 2 and EPUB 3 books: a library of covers, pages that "
+        "turn, a reading style of your own (or one per book), focus mode, "
+        "contents and bookmarks -- and it keeps your place.");
     page->append(*note);
 
     auto* close_btn = Gtk::make_managed<widgets::Button>(
