@@ -35,22 +35,12 @@ Turn turn_back(int page, int count, int prev_chapter);
 // x/y: the least side / top margin. max_line (s005): the widest a line of
 // text may run; on a wide window (focus mode, fullscreen) the side margins
 // grow to keep it, so a page never becomes one 1800 px line.
-struct PageMargins { int x = 48; int y = 40; int max_line = 760; };   // CSS px
+// spread (s007): two pages side by side -- still one viewport per turn.
+struct PageMargins { int x = 48; int y = 40; int max_line = 760; bool spread = false; };   // CSS px
 // The user stylesheet: the root fills the viewport and does not scroll; the
 // body is cut into columns exactly one viewport apart, so page n is at
 // scrollLeft = n * innerWidth. Images are held inside one page.
 std::string pagination_css(const PageMargins& m);
-
-// s006 -- the dark page (focus mode honours the app's dark). A USER-level
-// sheet that puts the book on a dark ground with light text and teal links,
-// whatever the publisher set; images and SVG keep their own colours.
-struct DarkPage {
-    std::string ground = "#0f1719";
-    std::string text   = "#d7e3e5";
-    std::string head   = "#f1f7f8";
-    std::string link   = "#5eead4";
-};
-std::string dark_page_css(const DarkPage& d);
 
 struct PageReport { int page = 0; int count = 0; };
 // "3/11" -> {3, 11}. Rejects junk, negatives, a zero count and page >= count.

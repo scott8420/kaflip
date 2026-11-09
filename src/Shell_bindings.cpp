@@ -6,6 +6,8 @@
 #include <gtkmm/eventcontrollerkey.h>
 #include <gtkmm/eventcontrollerscroll.h>
 #include <glibmm/variant.h>
+#include <glibmm/main.h>
+#include "StyleDialog.hpp"
 
 #include <filesystem>
 
@@ -27,6 +29,23 @@ void Shell::bind_actions() {  // bindings: actions + recents group
     m_act_page_prev = add_action("page-prev", sigc::mem_fun(*this, &Shell::on_page_prev));
     m_act_focus = add_action("focus-mode", sigc::mem_fun(*this, &Shell::on_focus_mode));   // s005
     add_action("add-folder", sigc::mem_fun(*this, &Shell::on_add_folder));                 // s006
+    add_action("reading-style", sigc::mem_fun(*this, &Shell::on_reading_style));           // s007
+
+    // s007 -- the styles' door; a change restyles the book live, is saved once
+    // per idle, and repaints the style window if it is open.
+    m_styles.set_door([this] { return m_style_journal.open(); });
+    m_styles.set_on_change([this] {
+        apply_style();
+        if (m_style_queued) return;
+        m_style_queued = true;
+        Glib::signal_idle().connect_once([this] {
+            m_style_queued = false;
+            if (!m_styles.save(m_style_file))
+                if (auto lg = log::get(log::Area::Book)) lg->warn("could not save {}", m_style_file);
+            if (m_style_dialog) m_style_dialog->refresh();
+        });
+    });
+    m_style_journal.set_on_change([this] { if (m_style_dialog) m_style_dialog->refresh(); });
 
     // s006 -- the library's door, change hook and journal (the stones' shape).
     m_library.set_door([this] { return m_lib_journal.open(); });

@@ -21,6 +21,7 @@
 #include "core/Paging.hpp"
 #include "core/Tabs.hpp"
 #include "core/Library.hpp"
+#include "core/ReadingStyle.hpp"
 #include <fstream>
 #include <set>
 
@@ -526,14 +527,10 @@ int main() {
         check("css: images held inside one page",
               css.find("max-height: calc(100vh - 80px)") != std::string::npos);
 
-        const std::string dark = core::dark_page_css({});
-        check("dark page: dark ground and light text on the root",
-              dark.find("background: #0f1719 !important") != std::string::npos &&
-              dark.find("color: #d7e3e5 !important") != std::string::npos);
-        check("dark page: publisher grounds cleared, text inherited",
-              dark.find("background-color: transparent !important") != std::string::npos &&
-              dark.find("color: inherit !important") != std::string::npos);
-        check("dark page: links teal", dark.find("a, a * { color: #5eead4 !important; }") != std::string::npos);
+        const std::string spread = core::pagination_css({48, 40, 760, true});
+        check("css: a spread is two columns, the cap per page (50vw)",
+              spread.find("column-count: 2 !important") != std::string::npos &&
+              spread.find("calc((50vw - 760px) / 2)") != std::string::npos, spread);
 
         auto r = core::parse_page_report("3/11");
         check("report: parses", r && r->page == 3 && r->count == 11);
@@ -702,6 +699,96 @@ int main() {
               core::cover_key("/a.epub", 10, 5) != core::cover_key("/a.epub", 10, 6) &&
               core::cover_key("/a.epub", 10, 5) != core::cover_key("/b.epub", 10, 5));
         check("cover key: a .png name", core::cover_key("/a", 1, 1).size() == 20);
+    }
+    // ── Reading style (s007) ──────────────────────────────────────────────────
+    {
+        std::cout << "\n-- reading style --\n";
+        using core::ReadingStyle;
+        using core::Override;
+        const auto has = [](const std::string& h, const std::string& n) { return h.find(n) != std::string::npos; };
+        std::string names;
+        for (const auto& p : core::presets()) names += p.preset + ",";
+        check("presets: Day, Sepia, Night, Paper", names == "Day,Sepia,Night,Paper,", names);
+        check("presets: Night forces its colours (Everything)", core::find_preset("Night")->level == Override::Everything);
+
+        ReadingStyle s;   // Day, Fonts
+        s.body_font = "Literata";
+        const std::string css = core::style_css(s);
+        check("style: the page ground and base text are always ours",
+              has(css, "html { background: #ffffff !important;") && has(css, "color: #1f2328 !important;"));
+        check("style: size scales the root", has(css, "font-size: 100% !important"));
+        check("style: Fonts level forces the body font onto the book's elements",
+              has(css, "font-family: \"Literata\" !important;") && has(css, "body p, body li"));
+        check("style: Fonts level leaves element colours to the book", !has(css, "color: inherit !important"));
+        ReadingStyle pub = s;
+        pub.level = Override::Publisher;
+        const std::string pcss = core::style_css(pub);
+        check("style: Publisher level -- our font is only a default",
+              has(pcss, "font-family: \"Literata\";") && !has(pcss, "font-family: \"Literata\" !important"));
+        ReadingStyle all = s;
+        all.level = Override::Everything;
+        check("style: Everything clears the book's element colours",
+              has(core::style_css(all), "body * { background-color: transparent !important; color: inherit !important; }"));
+        ReadingStyle para = s;
+        para.paras = core::Paras::Indent; para.justify = core::Justify::Full; para.hyphens = true;
+        const std::string pa = core::style_css(para);
+        check("style: indented paragraphs, first one flush",
+              has(pa, "text-indent: 1.5em !important") && has(pa, "body h1 + p"));
+        check("style: justified + hyphenated", has(pa, "text-align: justify !important") && has(pa, "hyphens: auto !important"));
+        check("style: book_css = the columns + the style",
+              has(core::book_css(s), "column-fill: auto") && has(core::book_css(s), "font-family: \"Literata\""));
+
+        ReadingStyle bad = s;
+        bad.body_font = "x\"; } body { display:none"; bad.page = "red"; bad.size_pct = 999; bad.line_height = 0.2;
+        const ReadingStyle clean = core::sanitized(bad);
+        check("sanitize: an unsafe font name is dropped", clean.body_font.empty());
+        check("sanitize: a bad colour falls back, numbers clamp",
+              clean.page == "#ffffff" && clean.size_pct == 220 && clean.line_height == 1.0);
+
+        ReadingStyle j = *core::find_preset("Paper");
+        j.size_pct = 115; j.spread = true; j.head_font = "Inter";
+        auto back = core::style_from_json(core::style_to_json(j));
+        check("style JSON round-trips", back && *back == j);
+        check("style JSON: missing fields keep defaults", core::style_from_json("{}") && *core::style_from_json("{}") == ReadingStyle{});
+        check("style JSON: junk refused", !core::style_from_json("[1,2"));
+
+        // the store + the gate
+        core::Styles st;
+        check("styles: defaults are Day for reading, Night for focus",
+              st.at(core::Styles::kReading).preset == "Day" && st.at(core::Styles::kFocus).preset == "Night");
+        for (const auto& v : core::styles::verbs()) {
+            core::Styles s2;
+            core::StyleJournal jn{s2};
+            s2.set_door([&] { return jn.open(); });
+            const auto before = s2.to_json();
+            v.run(jn, s2);
+            const auto after = s2.to_json();
+            check("style gate/" + v.name + ": through the door", s2.strays() == 0);
+            check("style gate/" + v.name + ": one step", jn.size() == 1 && after != before);
+            jn.undo();
+            check("style gate/" + v.name + ": undo exact", s2.to_json() == before);
+            jn.redo();
+            check("style gate/" + v.name + ": redo exact", s2.to_json() == after);
+        }
+        {
+            core::Styles s3;
+            core::StyleJournal jn{s3};
+            s3.set_door([&] { return jn.open(); });
+            const auto t0 = core::StyleJournal::Clock::now();
+            ReadingStyle n = s3.at(core::Styles::kReading);
+            for (int i = 1; i <= 5; ++i) {
+                n.size_pct = 100 + i * 5;
+                jn.run("Text size", {core::Styles::kReading}, [&] { s3.put(core::Styles::kReading, n); },
+                       "reading:size", t0 + std::chrono::milliseconds(i * 100));
+            }
+            check("styles: a slider drag merges into one step", jn.size() == 1 &&
+                  s3.at(core::Styles::kReading).size_pct == 125);
+            check("styles: the same preset twice is no step",
+                  core::styles::apply_preset(jn, s3, core::Styles::kReading, "Night") &&
+                  !core::styles::apply_preset(jn, s3, core::Styles::kReading, "Night"));
+            core::Styles back2;
+            check("styles: store JSON round-trips", back2.from_json(s3.to_json()) && back2.to_json() == s3.to_json());
+        }
     }
 
     std::cout << "-----------------------------------------------\n";

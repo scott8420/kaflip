@@ -21,7 +21,11 @@ Turn turn_back(int page, int count, int prev_chapter) {
 std::string pagination_css(const PageMargins& m) {
     // The side margin: at least m.x, more when the window is wider than a
     // line should be. Column width + gap still add up to exactly 100vw.
-    const std::string x  = "max(" + std::to_string(m.x) + "px, calc((100vw - " +
+    // A spread (s007) is two columns per viewport: each page gets half the
+    // width, the line cap applies per page, and the gap between the two
+    // pages is the same 2x -- so one turn is still exactly 100vw.
+    const std::string half = m.spread ? "50vw" : "100vw";
+    const std::string x  = "max(" + std::to_string(m.x) + "px, calc((" + half + " - " +
                            std::to_string(m.max_line) + "px) / 2))";
     const std::string x2 = "calc(2 * " + x + ")";
     const std::string y  = std::to_string(m.y) + "px";
@@ -38,7 +42,8 @@ std::string pagination_css(const PageMargins& m) {
         " width: auto !important; max-width: none !important;"
         " margin: 0 !important;"
         " padding: " + y + " " + x + " !important;"
-        " column-width: calc(100vw - " + x2 + ") !important;"
+        + (m.spread ? std::string(" column-count: 2 !important; column-width: auto !important;")
+                    : " column-width: calc(100vw - " + x2 + ") !important;") +
         " column-gap: " + x2 + " !important;"
         " column-fill: auto !important;"
         " overflow: visible !important; }\n"
@@ -47,19 +52,6 @@ std::string pagination_css(const PageMargins& m) {
         " max-height: calc(100vh - " + y2 + ") !important;"
         " object-fit: contain;"
         " break-inside: avoid; }\n";
-}
-
-std::string dark_page_css(const DarkPage& d) {
-    return
-        "html, body { background: " + d.ground + " !important;"
-        " color: " + d.text + " !important; }\n"
-        // Every element: no painted ground of its own, the text colour
-        // inherited -- so a publisher's white boxes and black text give way.
-        "body * { background-color: transparent !important;"
-        " color: inherit !important; border-color: rgba(255,255,255,0.18) !important; }\n"
-        "h1, h2, h3, h4, h5, h6 { color: " + d.head + " !important; }\n"
-        "a, a * { color: " + d.link + " !important; }\n"
-        "::selection { background: rgba(94,234,212,0.35) !important; }\n";
 }
 
 std::optional<PageReport> parse_page_report(const std::string& s) {

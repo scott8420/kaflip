@@ -60,10 +60,11 @@ public:
     void first_page();
     void last_page();
 
-    // s006 -- a dark page (focus mode honours the app's dark). Adds / removes
-    // a USER-level sheet over the book; layout is untouched, only colours.
-    void set_dark_page(bool on);
-    bool dark_page() const { return m_dark_sheet != nullptr; }
+    // s007 -- the ONE book stylesheet (core::book_css: columns, margins,
+    // typography, colours), replaced live; the page re-measures and keeps its
+    // place. `page` paints the view behind the book (#rrggbb) so a dark style
+    // never flashes white while a chapter loads.
+    void set_book_css(const std::string& css, const std::string& page);
 
     // Book opened, or the chapter moved (by us or by a link in the page).
     sigc::signal<void()>& signal_changed() { return m_changed; }
@@ -90,7 +91,7 @@ private:
     int                         m_page = 0;         // s003
     int                         m_page_count = 0;   // s003: 0 until the page reports
     core::Land                  m_land = core::Land::First;
-    WebKitUserStyleSheet*       m_dark_sheet = nullptr;   // s006: held while the dark page is on
+    WebKitUserStyleSheet*       m_sheet = nullptr;   // s007: the book sheet now in use
     sigc::signal<void()>        m_changed;
     sigc::signal<void(const std::string&)> m_tap;   // s005
 };

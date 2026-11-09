@@ -4,6 +4,7 @@
 #include "Reader.hpp"         // s002: the reading surface
 #include "Scanner.hpp"        // s006: folder scans off the main thread
 #include "core/Library.hpp"   // s006
+#include "core/ReadingStyle.hpp"   // s007
 
 #include <gtkmm/applicationwindow.h>
 #include <giomm/menu.h>
@@ -52,6 +53,7 @@ namespace kaflip {
 
 class AboutWindow;
 class ShortcutsDialog;
+class StyleDialog;
 
 class Shell : public Gtk::ApplicationWindow {
 public:
@@ -88,6 +90,7 @@ private:
     void on_focus_mode();                        // category: handler: F11 -- enter / leave focus mode (s005)
     void on_reader_tap(const std::string& zone); // category: handler: a tap zone in the page (s005)
     void on_add_folder();                        // category: handler: folder chooser -> background scan (s006)
+    void on_reading_style();                     // category: handler: open the Reading style window (s007)
     void on_library_remove(const std::string& path);   // category: handler: one undo step (s006)
     void on_library_menu(Gtk::Widget& tile, const std::string& path, double x, double y);   // category: handler: right-click a cover (s006)
     void on_recent_open(const std::string& p);   // category: handler: open a recent (parameterised)
@@ -126,11 +129,14 @@ private:
     void queue_library_repaint();                 // category: helper: save + repaint once per idle (s006)
     void rebuild_library();                       // category: helper: the grid from the store (s006)
     bool stones_active() const;                   // category: helper: Ctrl+Z goes to the stones (Undo page) or the library (s006)
+    void apply_style();                           // category: helper: the book sheet from the active style (s007)
+    std::string style_file() const;               // category: helper: the XDG config path (s007)
 
     // Titlebar: brand logo + Open (start), hamburger (end).
     widgets::Button     m_logo_button;   // frameless brand mark; opens About
     widgets::Button     m_open_button;   // s002: Open an EPUB
     widgets::Button     m_focus_button;  // s005: enter focus mode
+    widgets::Button     m_style_button;  // s007: Reading style
     Gtk::Widget*        m_header = nullptr;   // s005: hidden in focus mode (owned by the window)
     widgets::MenuButton m_menu_button;
 
@@ -199,6 +205,14 @@ private:
     widgets::FlowBox        m_lib_grid;
     widgets::Box            m_lib_empty;
     Scanner                 m_scanner;
+
+    // s007 -- reading style: two styles (reading, focus), their own journal,
+    // the window that edits them. Store before journal (declaration order).
+    core::Styles                 m_styles;
+    core::StyleJournal           m_style_journal{m_styles};
+    std::string                  m_style_file;
+    bool                         m_style_queued = false;
+    std::unique_ptr<StyleDialog> m_style_dialog;
 
     // s005 -- focus mode. A view state, like the page: not an undo step.
     bool              m_focus = false;

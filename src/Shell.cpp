@@ -1,6 +1,7 @@
 #include "Shell.hpp"
 #include "AboutWindow.hpp"      // complete type for ~unique_ptr<AboutWindow> in ~Shell()
 #include "ShortcutsDialog.hpp"  // ditto -- same singleton shape, same dtor requirement
+#include "StyleDialog.hpp"      // s007: same again
 #include "Log.hpp"
 
 // Shell.cpp -- GLUE. The ctor and the ordered build_ui() pass live here; every
@@ -12,6 +13,7 @@ Shell::Shell()
     : m_logo_button("shell.logo_button"),
       m_open_button("shell.open_button"),
       m_focus_button("shell.focus_button"),
+      m_style_button("shell.style_button"),
       m_menu_button("shell.menu_button"),
       m_body("shell.body", Gtk::Orientation::HORIZONTAL),
       m_rail_scroll("shell.rail_scroll"),
@@ -68,6 +70,14 @@ void Shell::build_ui() {
     rebuild_recents_page();
     update_reader_ui();   // s002: nothing open yet -> prev/next grey
     // s006: the library, loaded (not a user choice) and painted; the app opens on it.
+    // s007: the reading styles (not a user choice to load) -> the book sheet.
+    m_style_file = style_file();
+    {
+        core::Styles::Loading load(m_styles);
+        m_styles.load(m_style_file);
+    }
+    apply_style();
+
     m_library_file = library_file();
     m_library.load(m_library_file);
     rebuild_library();

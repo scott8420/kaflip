@@ -1,6 +1,7 @@
 #include "Shell.hpp"
 #include "AboutWindow.hpp"
 #include "ShortcutsDialog.hpp"
+#include "StyleDialog.hpp"
 #include "Log.hpp"
 #include "Registry.hpp"
 #include "core/Recents.hpp"
@@ -87,6 +88,17 @@ void Shell::on_add_folder() {  // handler
             if (auto lg = log::get(log::Area::Library)) lg->info("add-folder: dismissed ({})", e.what());
         }
     });
+}
+
+// s007 -- the Reading style window: built once, hidden on close (the About
+// window's lifetime). It opens on the style in use: focus mode's when in it.
+void Shell::on_reading_style() {  // handler
+    if (!m_style_dialog) {
+        m_style_dialog = std::make_unique<StyleDialog>(m_styles, m_style_journal);
+        m_style_dialog->set_transient_for(*this);
+    }
+    m_style_dialog->edit(m_focus ? core::Styles::kFocus : core::Styles::kReading);
+    m_style_dialog->present();
 }
 
 void Shell::on_library_remove(const std::string& path) {  // handler: one undo step

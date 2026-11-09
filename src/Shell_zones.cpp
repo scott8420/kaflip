@@ -47,6 +47,11 @@ void Shell::build_shell() {  // zone: window + sidebar + stack
     m_focus_button.set_tooltip_text("Focus mode (F11)");
     m_focus_button.set_action_name("win.focus-mode");
     header->pack_end(m_focus_button);
+    // s007: Reading style, beside focus mode.
+    m_style_button.set_icon_name("kaflip-style-symbolic");
+    m_style_button.set_tooltip_text("Reading style (Ctrl+,)");
+    m_style_button.set_action_name("win.reading-style");
+    header->pack_end(m_style_button);
     set_titlebar(*header);
     m_header = header;
 
@@ -461,6 +466,8 @@ Glib::RefPtr<Gio::Menu> Shell::build_menu() {  // zone: hamburger model
 
     auto file = Gio::Menu::create();
     file->append("Open book\u2026", "win.open-book");   // s002
+    file->append("Add folder to library\u2026", "win.add-folder");   // s006
+    file->append("Reading style\u2026", "win.reading-style");          // s007
     file->append("Remember a folder\u2026", "win.pick-folder");
     m_recents_menu = Gio::Menu::create();
     file->append_submenu("Open recent", m_recents_menu);

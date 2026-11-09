@@ -426,7 +426,7 @@ void Shell::set_focus_mode(bool on) {  // helper
         m_rail_scroll.set_visible(false);
         if (m_header) m_header->set_visible(false);
         m_reader_nav.set_visible(false);
-        m_reader.set_dark_page(true);   // s006: focus mode honours the app's dark
+        apply_style();   // s007: focus mode reads in its own style (Night by default)
         fullscreen();
         poke_hud();   // show where the controls are, then fade
     } else {
@@ -436,7 +436,7 @@ void Shell::set_focus_mode(bool on) {  // helper
         m_rail_scroll.set_visible(true);
         if (m_header) m_header->set_visible(true);
         m_reader_nav.set_visible(m_reader.has_book());
-        m_reader.set_dark_page(false);
+        apply_style();
         unfullscreen();
     }
     m_focus_button.set_icon_name(on ? "view-restore-symbolic" : "view-fullscreen-symbolic");
@@ -453,6 +453,18 @@ void Shell::poke_hud() {  // helper: show, then hide after a pause
         show_hud(false);
         return false;
     }, 2200);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// s007 -- reading style
+// ─────────────────────────────────────────────────────────────────────────────
+void Shell::apply_style() {  // helper: the book sheet from the active style
+    const core::ReadingStyle& s = m_styles.at(m_focus ? core::Styles::kFocus : core::Styles::kReading);
+    m_reader.set_book_css(core::book_css(s), s.page);
+}
+
+std::string Shell::style_file() const {  // helper: XDG config (a setting, not data)
+    return (std::filesystem::path(Glib::get_user_config_dir()) / "kaflip" / "style.json").string();
 }
 
 }  // namespace kaflip

@@ -43,6 +43,8 @@ add_library(kaflip_core STATIC
     # s006 -- the library: the store + its undoable verbs, folder scanning,
     # the cover-thumbnail cache key.
     src/core/Library.cpp
+    # s007 -- reading style: presets, the book stylesheet, the undoable store.
+    src/core/ReadingStyle.cpp
     # Vendored pugixml 1.14 (MIT), compiled into the core and nowhere else.
     third_party/pugixml/pugixml.cpp
 )
@@ -109,6 +111,8 @@ add_executable(kaflip
     # s006 -- the library: cover thumbnails (gdk-pixbuf) + the background folder scan.
     src/Covers.cpp
     src/Scanner.cpp
+    # s007 -- the Reading style window (controls + a live WebKit preview).
+    src/StyleDialog.cpp
 )
 target_include_directories(kaflip PRIVATE include ${GTKMM_INCLUDE_DIRS} ${WEBKIT_INCLUDE_DIRS})
 target_link_libraries(kaflip     PRIVATE ${GTKMM_LIBRARIES} ${WEBKIT_LIBRARIES} kaflip_core spdlog::spdlog)

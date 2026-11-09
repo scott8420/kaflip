@@ -1,5 +1,6 @@
 #include "Reader.hpp"
 #include "Log.hpp"
+#include "core/ReadingStyle.hpp"
 
 #include <webkit/webkit.h>
 #include <gio/gio.h>
@@ -146,12 +147,9 @@ Reader::Reader()
     // outranks the publisher's) and the page keeper script, both top frame only.
     WebKitUserContentManager* ucm = webkit_web_view_get_user_content_manager(m_view);
     {
-        const std::string css = core::pagination_css({});
-        WebKitUserStyleSheet* sheet = webkit_user_style_sheet_new(
-            css.c_str(), WEBKIT_USER_CONTENT_INJECT_TOP_FRAME, WEBKIT_USER_STYLE_LEVEL_USER,
-            nullptr, nullptr);
-        webkit_user_content_manager_add_style_sheet(ucm, sheet);
-        webkit_user_style_sheet_unref(sheet);
+        // s007: the book sheet is set by the Shell (set_book_css) from the
+        // reading style; until then, Day.
+        set_book_css(core::book_css(core::ReadingStyle{}), "#ffffff");
 
         GError* err = nullptr;
         GBytes* js = g_resources_lookup_data("/io/github/scott8420/Kaflip/js/paginate.js",
@@ -187,7 +185,7 @@ Reader::Reader()
 
 Reader::~Reader() {
     if (g_reader == this) g_reader = nullptr;
-    if (m_dark_sheet) webkit_user_style_sheet_unref(m_dark_sheet);
+    if (m_sheet) webkit_user_style_sheet_unref(m_sheet);
 }
 
 int Reader::chapter_count() const {
@@ -338,20 +336,19 @@ bool Reader::turn_back() {
                  [this](int p) { run_js("window.kaflip && window.kaflip.go(" + std::to_string(p) + ")"); });
 }
 
-void Reader::set_dark_page(bool on) {
+void Reader::set_book_css(const std::string& css, const std::string& page) {
     WebKitUserContentManager* ucm = webkit_web_view_get_user_content_manager(m_view);
-    if (on && !m_dark_sheet) {
-        const std::string css = core::dark_page_css({});
-        m_dark_sheet = webkit_user_style_sheet_new(
-            css.c_str(), WEBKIT_USER_CONTENT_INJECT_TOP_FRAME, WEBKIT_USER_STYLE_LEVEL_USER,
-            nullptr, nullptr);
-        webkit_user_content_manager_add_style_sheet(ucm, m_dark_sheet);
-    } else if (!on && m_dark_sheet) {
-        webkit_user_content_manager_remove_style_sheet(ucm, m_dark_sheet);
-        webkit_user_style_sheet_unref(m_dark_sheet);
-        m_dark_sheet = nullptr;
+    if (m_sheet) {
+        webkit_user_content_manager_remove_style_sheet(ucm, m_sheet);
+        webkit_user_style_sheet_unref(m_sheet);
     }
-    if (auto lg = log::get(log::Area::Web)) lg->info("dark page {}", on ? "on" : "off");
+    m_sheet = webkit_user_style_sheet_new(css.c_str(), WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+                                          WEBKIT_USER_STYLE_LEVEL_USER, nullptr, nullptr);
+    webkit_user_content_manager_add_style_sheet(ucm, m_sheet);
+    GdkRGBA rgba;
+    if (gdk_rgba_parse(&rgba, page.c_str())) webkit_web_view_set_background_color(m_view, &rgba);
+    // Margins, size or the spread may have moved every page boundary.
+    if (m_book) run_js("window.kaflip && window.kaflip.relayout()");
 }
 
 void Reader::first_page() { if (m_book) run_js("window.kaflip && window.kaflip.first()"); }

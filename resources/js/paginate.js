@@ -31,7 +31,9 @@
             document.documentElement.appendChild(marker);
         }
         marker.style.display = 'none';                       // measure the columns alone
-        const n = Math.max(1, Math.round(root().scrollWidth / w));
+        // s007: ceil, not round -- a spread's last page may be one column
+        // (half a viewport) and still a page. 2px of slack for subpixels.
+        const n = Math.max(1, Math.ceil((root().scrollWidth - 2) / w));
         marker.style.left = (n * w - 1) + 'px';
         marker.style.display = 'block';
         return n;
