@@ -21,9 +21,11 @@
 // bundle (the RESOURCE-PIPELINE paradigm -- App::on_activate registers it), so
 // the window also exercises resource resolution + theme recolour.
 //
-// It is deliberately minimal: this is a paradigm seed, not a product About box,
-// so there's no branded chrome (credits, licence, links) -- just enough to prove
-// the lifetime and the resource icon. See docs/resources-and-dialog-lifetime.md.
+// s010 (Scott: "the about should have tabs and credits recognitions"): three
+// tabs in the header -- About (logo, version, what it does), Credits (who made
+// it, and the libraries it stands on, each with its author and licence), and
+// License (the repo's LICENSE, compiled into the bundle so it cannot drift).
+// See docs/resources-and-dialog-lifetime.md.
 // ─────────────────────────────────────────────────────────────────────────────
 namespace kaflip {
 

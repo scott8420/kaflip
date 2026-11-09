@@ -26,6 +26,7 @@
   <!-- s004: the skin (Trails' look) -->
   <gresource prefix="/io/github/scott8420/Kaflip">
     <file alias="kaflip.css">kaflip.css</file>
+    <file alias="LICENSE">../LICENSE</file>
   </gresource>
   <!-- s003: the pagination script, injected by Reader as a WebKit user script. -->
   <gresource prefix="/io/github/scott8420/Kaflip/js">

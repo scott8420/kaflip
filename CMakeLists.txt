@@ -75,7 +75,8 @@ set(KAFLIP_RESOURCES_C   "${CMAKE_CURRENT_BINARY_DIR}/kaflip-resources.c")
 file(GLOB KAFLIP_RESOURCE_FILES CONFIGURE_DEPENDS   # s003: a new/edited .js or .svg must rebuild the bundle
      "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/scalable/apps/*.svg"
      "${CMAKE_CURRENT_SOURCE_DIR}/resources/js/*.js"    # s003: the pagination script
-     "${CMAKE_CURRENT_SOURCE_DIR}/resources/*.css")     # s004: the skin
+     "${CMAKE_CURRENT_SOURCE_DIR}/resources/*.css"      # s004: the skin
+     "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")             # s010: the About window's License tab
 add_custom_command(
     OUTPUT  "${KAFLIP_RESOURCES_C}"
     COMMAND "${GLIB_COMPILE_RESOURCES}"
@@ -117,6 +118,7 @@ add_executable(kaflip
     src/StyleDialog.cpp
 )
 target_include_directories(kaflip PRIVATE include ${GTKMM_INCLUDE_DIRS} ${WEBKIT_INCLUDE_DIRS})
+target_compile_definitions(kaflip PRIVATE KAFLIP_VERSION="${PROJECT_VERSION}")   # s010: About
 target_link_libraries(kaflip     PRIVATE ${GTKMM_LIBRARIES} ${WEBKIT_LIBRARIES} kaflip_core spdlog::spdlog)
 target_link_directories(kaflip   PRIVATE ${GTKMM_LIBRARY_DIRS} ${WEBKIT_LIBRARY_DIRS})
 target_compile_options(kaflip    PRIVATE ${GTKMM_CFLAGS_OTHER} ${WEBKIT_CFLAGS_OTHER})
