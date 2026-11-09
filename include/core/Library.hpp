@@ -80,6 +80,9 @@ public:
     // and no undo moves it. Saved with the library.
     std::optional<Place> place(const std::string& path) const;
     void                 set_place(const std::string& path, const Place& p);   // no on_change
+    // s009: how far through the whole book, 0..1 (-1 / nullopt = not known).
+    void                  set_progress(const std::string& path, double p);
+    std::optional<double> progress(const std::string& path) const;
 
     // ── persistence (JSON). load() is not a user choice: not undoable. ──────
     std::string to_json() const;
@@ -100,6 +103,7 @@ public:
 private:
     std::map<Id, LibItem>  m_items;
     std::map<std::string, Place> m_places;   // s008: book path -> where you were
+    std::map<std::string, double> m_progress; // s009: book path -> 0..1
     int                    m_strays = 0;
     int                    m_loading = 0;
     std::function<bool()>  m_door;

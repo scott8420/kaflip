@@ -1,5 +1,7 @@
 #include "core/Epub.hpp"
 
+#include "core/Progress.hpp"
+
 #include <pugixml.hpp>
 
 #include <algorithm>
@@ -181,6 +183,8 @@ bool Book::load() {
     m_spine.clear();
     m_toc.clear();
     m_toc_source.clear();
+    m_lengths.clear();
+    m_measured = false;
     m_error.clear();
 
     // 1. container.xml -> the OPF.
@@ -293,6 +297,26 @@ bool Book::load() {
     }
     for (auto& e : m_toc) e.spine = e.path.empty() ? -1 : spine_index_of(e.path);
     return true;
+}
+
+const std::vector<int>& Book::text_lengths() const {
+    if (!m_measured) {
+        m_measured = true;
+        m_lengths.clear();
+        for (const auto& s : m_spine) {
+            const auto bytes = m_zip.read(s.path);
+            m_lengths.push_back(bytes ? text_length(*bytes) : 0);
+        }
+    }
+    return m_lengths;
+}
+
+double Book::progress(int chapter, int through) const {
+    std::vector<bool> lin;
+    bool any = false;
+    for (const auto& s : m_spine) { lin.push_back(s.linear); any = any || s.linear; }
+    if (!any) lin.assign(lin.size(), true);   // a book with no linear items reads in spine order
+    return book_progress(text_lengths(), lin, chapter, through);
 }
 
 int Book::spine_index_of(const std::string& path) const {

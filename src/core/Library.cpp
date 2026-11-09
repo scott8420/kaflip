@@ -65,6 +65,17 @@ void Library::set_place(const std::string& path, const Place& p) {
     m_places[path] = p;   // not a record: no door, no on_change, no step
 }
 
+void Library::set_progress(const std::string& path, double p) {
+    if (path.empty() || !(p >= 0.0)) return;
+    m_progress[path] = std::min(1.0, p);
+}
+
+std::optional<double> Library::progress(const std::string& path) const {
+    auto it = m_progress.find(path);
+    if (it == m_progress.end()) return std::nullopt;
+    return it->second;
+}
+
 std::int64_t Library::next_added() const {
     std::int64_t n = 0;
     for (const auto& [id, v] : m_items) n = std::max(n, v.added);
@@ -91,6 +102,7 @@ std::string Library::to_json() const {
     }
     json places = json::object();   // s008
     for (const auto& [path, p] : m_places) places[path] = {{"href", p.href}, {"ch", p.ch}};
+    for (const auto& [path, pct] : m_progress) places[path]["progress"] = pct;   // s009
     return json{{"version", 1}, {"items", arr}, {"places", places}}.dump(1);
 }
 
@@ -98,6 +110,7 @@ bool Library::from_json(const std::string& text) {
     Loading load(*this);
     m_items.clear();
     m_places.clear();
+    m_progress.clear();
     json doc = json::parse(text, nullptr, false);
     if (doc.is_discarded() || !doc.is_object() || !doc.contains("items") || !doc["items"].is_array())
         return false;
@@ -132,6 +145,8 @@ bool Library::from_json(const std::string& text) {
             if (!p.is_object()) continue;
             Place pl{p.value("href", std::string()), std::max(0, p.value("ch", 0))};
             if (!pl.href.empty()) m_places[path] = pl;
+            if (p.contains("progress") && p["progress"].is_number())   // s009
+                set_progress(path, p["progress"].get<double>());
         }
     return true;
 }
@@ -152,7 +167,7 @@ bool Library::save(const std::string& file) const {
 
 bool Library::load(const std::string& file) {
     std::ifstream in(file, std::ios::binary);
-    if (!in) { Loading load(*this); m_items.clear(); m_places.clear(); return true; }   // no file yet: empty
+    if (!in) { Loading load(*this); m_items.clear(); m_places.clear(); m_progress.clear(); return true; }   // no file yet: empty
     std::ostringstream ss;
     ss << in.rdbuf();
     return from_json(ss.str());

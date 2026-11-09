@@ -22,12 +22,14 @@
 #include "core/Tabs.hpp"
 #include "core/Library.hpp"
 #include "core/ReadingStyle.hpp"
+#include "core/Progress.hpp"
 #include <fstream>
 #include <set>
 
 #include <zlib.h>
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -672,6 +674,43 @@ int main() {
         check("toc where: no chapter -> -1", core::toc_index_for(w, -1) == -1);
         check("toc: collapse_ws", core::collapse_ws("  a \n\t b  c ") == "a b c");
     }
+    // ── Progress: the whole book (s009) ──────────────────────────────────────
+    {
+        std::cout << "\n-- progress --\n";
+        const std::string x =
+            "<?xml version=\"1.0\"?><html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Skip me</title>"
+            "<style>p{}</style></head><body>\n  <h1>Ab</h1>\n  <p>caf\xc3\xa9 &amp; <em>x</em></p>"
+            "<script>var y=1;</script><p>\xf0\x9f\x98\x80</p>\n</body></html>";
+        // "Ab" 2 + "café & " 7 + "x" 1 + emoji 2 (a surrogate pair) = 12; blanks, head, script out.
+        check("progress: text_length counts like paginate.js", core::text_length(x) == 12,
+              std::to_string(core::text_length(x)));
+        check("progress: inner spaces count, blank nodes do not",
+              core::text_length("<html><body><p> a  b </p>\n\n<p>c</p></body></html>") == 7,
+              std::to_string(core::text_length("<html><body><p> a  b </p>\n\n<p>c</p></body></html>")));
+        check("progress: malformed -> 0", core::text_length("<html><body><p>") == 0);
+        check("progress: no body -> the whole document", core::text_length("<div>abc</div>") == 3);
+        const std::vector<int> len{100, 300, 50, 600};
+        const std::vector<bool> lin{true, true, false, true};
+        check("progress: start of the book", core::book_progress(len, lin, 0, 0) == 0.0);
+        check("progress: through ch 2 of 3 linear",
+              std::abs(core::book_progress(len, lin, 1, 300) - 0.4) < 1e-9);
+        check("progress: a note counts where the text before it ended",
+              std::abs(core::book_progress(len, lin, 2, 40) - 0.4) < 1e-9);
+        check("progress: the end is 1", core::book_progress(len, lin, 3, 600) == 1.0);
+        check("progress: through is clamped", core::book_progress(len, lin, 3, 99999) == 1.0 &&
+              core::book_progress(len, lin, 0, -5) == 0.0);
+        check("progress: an empty book is 0", core::book_progress({0, 0}, {true, true}, 1, 0) == 0.0);
+        check("progress: percent floored", core::percent_text(0.379) == "37%" &&
+              core::percent_text(0.999) == "99%" && core::percent_text(1.0) == "100%" &&
+              core::percent_text(-1) == "0%");
+        core::Book b;
+        b.open_bytes(make_zip(good_epub()));
+        const auto& L = b.text_lengths();
+        check("progress: Book measures each spine item", L.size() == b.spine().size() && L[0] == 405,
+              L.empty() ? "empty" : std::to_string(L[0]));
+        check("progress: Book::progress skips the non-linear note", b.progress(1, 0) == 1.0 &&
+              std::abs(b.progress(0, 81) - 0.2) < 1e-9, std::to_string(b.progress(0, 81)));
+    }
     // ── EPUB covers (s006) ────────────────────────────────────────────────────
     {
         std::cout << "\n-- covers --\n";
@@ -794,7 +833,10 @@ int main() {
                 g.l.set_place("/books/one.epub", core::Place{"", 9});
                 check("place: an empty href is ignored", g.l.place("/books/one.epub")->ch == 4410);
                 Library back2;
+                g.l.set_progress("/books/one.epub", 0.42);
+                g.l.set_progress("/books/one.epub", -1);   // unknown: ignored
                 check("place: JSON round-trip", back2.from_json(g.l.to_json()) &&
+                      back2.progress("/books/one.epub") == 0.42 &&
                       back2.place("/books/one.epub") == core::Place{"OEBPS/c3.xhtml", 4410});
                 check("marks: JSON round-trip", back2.get(Library::book_id("/books/one.epub"))->marks ==
                       g.l.get(Library::book_id("/books/one.epub"))->marks &&

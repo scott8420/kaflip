@@ -66,6 +66,11 @@ public:
     // "nav" or "ncx" or "" -- where the TOC came from (logs, selftest).
     const std::string& toc_source() const { return m_toc_source; }
 
+    // s009: each spine item's text length (core::text_length -- paginate.js's
+    // unit), measured on first ask and kept. Whole-book progress is built on it.
+    const std::vector<int>& text_lengths() const;
+    double progress(int chapter, int through) const;   // 0..1, linear items only
+
     // Spine index of a zip path (fragment ignored), or -1.
     int spine_index_of(const std::string& path) const;
 
@@ -85,6 +90,8 @@ private:
     std::vector<SpineItem>    m_spine;
     std::vector<TocEntry>     m_toc;          // s008
     std::string               m_toc_source;   // s008
+    mutable std::vector<int>  m_lengths;      // s009: empty until text_lengths()
+    mutable bool              m_measured = false;
     mutable std::string       m_error;
 };
 

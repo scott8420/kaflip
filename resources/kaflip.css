@@ -219,3 +219,7 @@ popover.toc-popover > contents { padding: 10px 6px 6px 6px; }
 .mark-snippet { font-size: 0.88em; }
 .reader-nav button.marked, .reader-nav button.marked image { color: #5eead4; }
 .nav-tabs > button:checked { background-color: rgba(94,234,212,0.22); color: #ffffff; }
+
+/* s009 -- progress under a cover */
+progressbar.tile-progress trough { min-height: 4px; border-radius: 2px; background-color: rgba(255,255,255,0.12); }
+progressbar.tile-progress progress { min-height: 4px; border-radius: 2px; }   /* the page tint colours it */

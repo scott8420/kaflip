@@ -198,6 +198,7 @@ private:
     Glib::RefPtr<Gio::SimpleAction> m_act_marks, m_act_mark;   // s008: the list, the toggle
     widgets::Button  m_mark_button;          // s008: bookmark this page (Ctrl+B)
     sigc::connection m_place_timer;          // s008: the reading position, saved after a pause
+    bool             m_lib_tiles_stale = false;   // s009: a book's progress moved; repaint on showing the Library
     widgets::Button  m_prev_button;
     widgets::Label   m_chapter_label;
     widgets::Button  m_next_button;

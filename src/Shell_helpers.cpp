@@ -17,6 +17,7 @@
 #include <gtkmm/listboxrow.h>
 #include "core/Tabs.hpp"
 #include "Covers.hpp"
+#include "core/Progress.hpp"   // s009
 #include <gtkmm/drawingarea.h>
 #include <cairomm/context.h>
 #include <cairomm/surface.h>
@@ -263,6 +264,8 @@ void Shell::update_reader_ui() {  // helper: title, "3 of 12", grey prev/next
     if (m_reader.page_count() > 0)
         where += "  \u00b7  page " + std::to_string(m_reader.page() + 1) + " of " +
                  std::to_string(m_reader.page_count());
+    if (m_reader.page_end() >= 0)   // s009: the whole book
+        where += "  \u00b7  " + core::percent_text(b->progress(m_reader.chapter(), m_reader.page_end()));
     if (!b->meta().creators.empty()) where = b->meta().creators.front() + "  \u00b7  " + where;
     m_chapter_label.set_text(where);
     m_hud_label.set_text(where);   // s005: the focus HUD says the same
@@ -275,6 +278,14 @@ void Shell::note_place() {  // helper
     const core::Book* b = m_reader.book();
     const auto at = m_reader.place();
     if (!b || !at || b->file().empty()) return;
+    // s009: and how far through the book (through the end of the page on screen).
+    if (m_reader.page_end() >= 0) {
+        const double p = b->progress(m_reader.chapter(), m_reader.page_end());
+        if (m_library.progress(b->file()) != p) {
+            m_library.set_progress(b->file(), p);
+            m_lib_tiles_stale = true;
+        }
+    }
     if (m_library.place(b->file()) == at) return;
     m_library.set_place(b->file(), *at);
     m_place_timer.disconnect();
@@ -329,6 +340,7 @@ std::string Shell::where_title() const {  // helper
 // the window's tint class (.page-<id>) always agree.
 void Shell::select_tab(const std::string& id) {  // helper
     if (!core::find_tab(id)) return;
+    if (id == "library" && m_lib_tiles_stale) rebuild_library();   // s009: progress moved while reading
     m_stack.set_visible_child(id);
     for (const auto& t : core::tab_registry()) remove_css_class("page-" + std::string(t.id));
     add_css_class("page-" + id);
@@ -401,7 +413,7 @@ Gtk::Widget* make_cover(const std::string& png) {
 }
 
 // A cover tile: the thumbnail, or a tinted card with the title on it.
-Gtk::Widget* make_tile(const core::LibItem& b) {
+Gtk::Widget* make_tile(const core::LibItem& b, std::optional<double> progress) {
     auto tile = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
     tile->add_css_class("book-tile");
     tile->set_halign(Gtk::Align::CENTER);
@@ -435,6 +447,15 @@ Gtk::Widget* make_tile(const core::LibItem& b) {
     title->set_max_width_chars(16);
     title->set_size_request(150, -1);
     title->add_css_class("tile-title");
+    // s009: how far you are -- a thin bar under the cover once you have begun.
+    if (progress && *progress > 0.0) {
+        auto bar = Gtk::make_managed<Gtk::ProgressBar>();
+        bar->set_fraction(*progress);
+        bar->add_css_class("tile-progress");
+        bar->set_size_request(150, -1);
+        bar->set_tooltip_text(*progress >= 1.0 ? "Finished" : core::percent_text(*progress) + " read");
+        tile->append(*bar);
+    }
     tile->append(*title);
     if (!b.author.empty()) {
         auto author = Gtk::make_managed<Gtk::Label>(b.author);
@@ -450,11 +471,12 @@ Gtk::Widget* make_tile(const core::LibItem& b) {
 }  // namespace
 
 void Shell::rebuild_library() {  // helper: the grid from the store
+    m_lib_tiles_stale = false;   // s009
     while (auto* c = m_lib_grid.get_child_at_index(0)) m_lib_grid.remove(*c);
     m_lib_paths.clear();
     const auto books = m_library.books();
     for (const auto& b : books) {
-        auto* tile = make_tile(b);
+        auto* tile = make_tile(b, m_library.progress(b.path));
         m_lib_grid.append(*tile);
         m_lib_paths.push_back(b.path);
         // Right-click (or a long press on a touch screen) -> Read / Remove.
