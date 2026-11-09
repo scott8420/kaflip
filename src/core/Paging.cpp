@@ -1,3 +1,4 @@
+#include <vector>
 #include "core/Paging.hpp"
 
 #include <charconv>
@@ -54,7 +55,43 @@ std::string pagination_css(const PageMargins& m) {
         " break-inside: avoid; }\n";
 }
 
-std::optional<PageReport> parse_page_report(const std::string& s) {
+namespace {
+bool to_int(const std::string& s, int& out) {
+    const char* b = s.data();
+    auto [p, e] = std::from_chars(b, b + s.size(), out);
+    return e == std::errc{} && p == b + s.size() && !s.empty();
+}
+}  // namespace
+
+std::optional<PageReport> parse_page_report(const std::string& full) {
+    // s008: "p/c@start,end,mark\tsnippet" -- split the place part off first.
+    std::string s = full, place, snippet;
+    if (const auto tab = s.find('\t'); tab != std::string::npos) { snippet = s.substr(tab + 1); s.resize(tab); }
+    if (const auto at = s.find('@'); at != std::string::npos) { place = s.substr(at + 1); s.resize(at); }
+    auto r = parse_page_counts(s);
+    if (!r) return std::nullopt;
+    if (!place.empty()) {
+        std::vector<std::string> parts;
+        std::size_t i = 0;
+        for (;;) {
+            const auto comma = place.find(',', i);
+            parts.push_back(place.substr(i, comma == std::string::npos ? std::string::npos : comma - i));
+            if (comma == std::string::npos) break;
+            i = comma + 1;
+        }
+        if (parts.size() != 3) return std::nullopt;
+        int v[3];
+        std::size_t k = 0;
+        for (; k < 3; ++k)
+            if (!to_int(parts[k], v[k]) || v[k] < 0) return std::nullopt;
+        if (k != 3 || v[1] < v[0]) return std::nullopt;
+        r->start = v[0]; r->end = v[1]; r->mark = v[2];
+        r->snippet = snippet;
+    }
+    return r;
+}
+
+std::optional<PageReport> parse_page_counts(const std::string& s) {
     const auto slash = s.find('/');
     if (slash == std::string::npos || slash == 0 || slash + 1 >= s.size()) return std::nullopt;
     PageReport r;

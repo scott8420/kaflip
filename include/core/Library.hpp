@@ -24,6 +24,25 @@
 
 namespace kaflip::core {
 
+// s008: a place in a book -- the chapter's zip path and a character offset
+// into that chapter's text (paginate.js counts it). Not a page number: a page
+// moves when the font or the window does; a character does not.
+struct Place {
+    std::string href;     // zip path of the spine item
+    int         ch = 0;   // characters into its body text
+    bool operator==(const Place&) const = default;
+};
+
+// s008: a bookmark -- a place plus what to call it in the list.
+struct Bookmark {
+    int         id = 0;    // unique within the book (max + 1)
+    Place       at;
+    int         spine = 0; // the spine index when made: orders the list
+    std::string title;     // the chapter's TOC title (or "Chapter 3")
+    std::string snippet;   // the first words on the page
+    bool operator==(const Bookmark&) const = default;
+};
+
 struct LibItem {
     enum class Kind { Book, Folder };
     Kind         kind = Kind::Book;
@@ -33,6 +52,7 @@ struct LibItem {
     std::string  cover;     // book: cached thumbnail file ("" = none -- a title tile)
     std::string  folder;    // book: the folder that brought it ("" = opened directly)
     std::int64_t added = 0; // arrival order
+    std::vector<Bookmark> marks;   // s008: book only, in reading order
     bool operator==(const LibItem&) const = default;
 };
 
@@ -55,6 +75,12 @@ public:
     std::size_t          size() const { return m_items.size(); }
     std::int64_t         next_added() const;
 
+    // ── s008: the reading position per book. A VIEW position, like a page
+    // turn: kept beside the records, never in them, so no undo step holds it
+    // and no undo moves it. Saved with the library.
+    std::optional<Place> place(const std::string& path) const;
+    void                 set_place(const std::string& path, const Place& p);   // no on_change
+
     // ── persistence (JSON). load() is not a user choice: not undoable. ──────
     std::string to_json() const;
     bool        from_json(const std::string& text);   // false: unreadable (store left empty)
@@ -73,6 +99,7 @@ public:
 
 private:
     std::map<Id, LibItem>  m_items;
+    std::map<std::string, Place> m_places;   // s008: book path -> where you were
     int                    m_strays = 0;
     int                    m_loading = 0;
     std::function<bool()>  m_door;
@@ -95,6 +122,14 @@ bool add_folder(LibraryJournal& j, Library& lib, const std::string& folder,
 
 // One step: the book leaves the library (the file is not touched).
 bool remove_book(LibraryJournal& j, Library& lib, const std::string& path);
+
+// s008 -- bookmarks, one step each. add: false when the book is not in the
+// library or a bookmark already sits at that exact place. remove: by id.
+bool add_bookmark(LibraryJournal& j, Library& lib, const std::string& path, Bookmark mark);
+bool remove_bookmark(LibraryJournal& j, Library& lib, const std::string& path, int id);
+// The ids of the book's bookmarks inside [from, to) of chapter `href` (the
+// page on screen). to < 0 = to the end of the chapter.
+std::vector<int> marks_between(const LibItem& book, const std::string& href, int from, int to);
 
 // The verb table the selftest gate walks (CANON: every verb through the door).
 struct Verb {

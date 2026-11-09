@@ -256,13 +256,19 @@ void Shell::build_reader_page() {  // zone: the Reader page
     m_chapter_label.set_margin_end(10);
     // s008: Contents, at the left of the bar.
     m_toc_button.set_icon_name("view-list-symbolic");
-    m_toc_button.set_tooltip_text("Contents (F9)");
+    m_toc_button.set_tooltip_text("Contents (F9)  \u00b7  Bookmarks (Ctrl+Shift+B)");
     m_toc_button.set_action_name("win.contents");
     m_toc_button.set_focus_on_click(false);
     m_reader_nav.append(m_toc_button);
     m_reader_nav.append(m_prev_button);
     m_reader_nav.append(m_chapter_label);
     m_reader_nav.append(m_next_button);
+    // s008: bookmark this page.
+    m_mark_button.set_icon_name("kaflip-bookmark-symbolic");
+    m_mark_button.set_tooltip_text("Bookmark this page (Ctrl+B)");
+    m_mark_button.set_action_name("win.bookmark");
+    m_mark_button.set_focus_on_click(false);
+    m_reader_nav.append(m_mark_button);
     // s008a: text size, right in the bar -- "A" small, a slider, "A" big.
     const auto size_slider = [this](widgets::Scale& sc, widgets::Box& into) {
         auto small = Gtk::make_managed<Gtk::Label>("A");
@@ -307,7 +313,7 @@ void Shell::build_reader_page() {  // zone: the Reader page
         b->set_focus_on_click(false);
         return b;
     };
-    m_hud_toc = hud_button("view-list-symbolic", "win.contents", "Contents (F9)");   // s008
+    m_hud_toc = hud_button("view-list-symbolic", "win.contents", "Contents and bookmarks (F9)");   // s008
     m_hud.append(*m_hud_toc);
     m_hud.append(*hud_button("go-previous-symbolic", "win.page-prev", "Previous page"));
     m_hud_label.set_margin_start(10);

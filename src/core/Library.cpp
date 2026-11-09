@@ -54,6 +54,17 @@ std::vector<LibItem> Library::folders() const {
     return out;   // std::map: already by id = by path
 }
 
+std::optional<Place> Library::place(const std::string& path) const {
+    auto it = m_places.find(path);
+    if (it == m_places.end()) return std::nullopt;
+    return it->second;
+}
+
+void Library::set_place(const std::string& path, const Place& p) {
+    if (path.empty() || p.href.empty()) return;
+    m_places[path] = p;   // not a record: no door, no on_change, no step
+}
+
 std::int64_t Library::next_added() const {
     std::int64_t n = 0;
     for (const auto& [id, v] : m_items) n = std::max(n, v.added);
@@ -66,16 +77,27 @@ std::int64_t Library::next_added() const {
 std::string Library::to_json() const {
     json arr = json::array();
     for (const auto& [id, v] : m_items) {
-        arr.push_back({{"kind", v.kind == LibItem::Kind::Folder ? "folder" : "book"},
-                       {"path", v.path}, {"title", v.title}, {"author", v.author},
-                       {"cover", v.cover}, {"folder", v.folder}, {"added", v.added}});
+        json e = {{"kind", v.kind == LibItem::Kind::Folder ? "folder" : "book"},
+                  {"path", v.path}, {"title", v.title}, {"author", v.author},
+                  {"cover", v.cover}, {"folder", v.folder}, {"added", v.added}};
+        if (!v.marks.empty()) {   // s008
+            json ms = json::array();
+            for (const auto& m : v.marks)
+                ms.push_back({{"id", m.id}, {"href", m.at.href}, {"ch", m.at.ch}, {"spine", m.spine},
+                              {"title", m.title}, {"snippet", m.snippet}});
+            e["marks"] = ms;
+        }
+        arr.push_back(e);
     }
-    return json{{"version", 1}, {"items", arr}}.dump(1);
+    json places = json::object();   // s008
+    for (const auto& [path, p] : m_places) places[path] = {{"href", p.href}, {"ch", p.ch}};
+    return json{{"version", 1}, {"items", arr}, {"places", places}}.dump(1);
 }
 
 bool Library::from_json(const std::string& text) {
     Loading load(*this);
     m_items.clear();
+    m_places.clear();
     json doc = json::parse(text, nullptr, false);
     if (doc.is_discarded() || !doc.is_object() || !doc.contains("items") || !doc["items"].is_array())
         return false;
@@ -90,9 +112,27 @@ bool Library::from_json(const std::string& text) {
         v.cover  = e.value("cover", std::string());
         v.folder = e.value("folder", std::string());
         v.added  = e.value("added", std::int64_t{0});
+        if (e.contains("marks") && e["marks"].is_array())   // s008
+            for (const auto& m : e["marks"]) {
+                if (!m.is_object()) continue;
+                Bookmark b;
+                b.id      = m.value("id", 0);
+                b.at.href = m.value("href", std::string());
+                b.at.ch   = std::max(0, m.value("ch", 0));
+                b.spine   = m.value("spine", 0);
+                b.title   = m.value("title", std::string());
+                b.snippet = m.value("snippet", std::string());
+                if (!b.at.href.empty()) v.marks.push_back(std::move(b));
+            }
         if (v.path.empty()) continue;
         put(v.kind == LibItem::Kind::Folder ? folder_id(v.path) : book_id(v.path), v);
     }
+    if (doc.contains("places") && doc["places"].is_object())   // s008
+        for (const auto& [path, p] : doc["places"].items()) {
+            if (!p.is_object()) continue;
+            Place pl{p.value("href", std::string()), std::max(0, p.value("ch", 0))};
+            if (!pl.href.empty()) m_places[path] = pl;
+        }
     return true;
 }
 
@@ -112,7 +152,7 @@ bool Library::save(const std::string& file) const {
 
 bool Library::load(const std::string& file) {
     std::ifstream in(file, std::ios::binary);
-    if (!in) { Loading load(*this); m_items.clear(); return true; }   // no file yet: empty
+    if (!in) { Loading load(*this); m_items.clear(); m_places.clear(); return true; }   // no file yet: empty
     std::ostringstream ss;
     ss << in.rdbuf();
     return from_json(ss.str());
@@ -130,6 +170,7 @@ void note_opened(Library& lib, LibItem book) {
     if (auto old = lib.get(id)) {
         book.folder = old->folder;
         book.added  = old->added;
+        book.marks  = old->marks;   // s008
         if (book.cover.empty()) book.cover = old->cover;
         if (*old == book) return;
     } else {
@@ -174,6 +215,45 @@ bool remove_book(LibraryJournal& j, Library& lib, const std::string& path) {
                  [&]() { lib.put(id, std::nullopt); });
 }
 
+bool add_bookmark(LibraryJournal& j, Library& lib, const std::string& path, Bookmark mark) {
+    const auto id = Library::book_id(path);
+    auto b = lib.get(id);
+    if (!b || mark.at.href.empty()) return false;
+    int next = 1;
+    for (const auto& m : b->marks) {
+        if (m.at == mark.at) return false;
+        next = std::max(next, m.id + 1);
+    }
+    mark.id = next;
+    b->marks.push_back(std::move(mark));
+    std::stable_sort(b->marks.begin(), b->marks.end(), [](const Bookmark& x, const Bookmark& y) {
+        return x.spine != y.spine ? x.spine < y.spine : x.at.ch < y.at.ch;
+    });
+    const auto& mk = *std::find_if(b->marks.begin(), b->marks.end(),
+                                   [&](const Bookmark& m) { return m.id == next; });
+    const std::string label = "Add bookmark" + (mk.title.empty() ? std::string() : " “" + mk.title + "”");
+    return j.run(label, {id}, [&]() { lib.put(id, *b); });
+}
+
+bool remove_bookmark(LibraryJournal& j, Library& lib, const std::string& path, int mark_id) {
+    const auto id = Library::book_id(path);
+    auto b = lib.get(id);
+    if (!b) return false;
+    const auto it = std::find_if(b->marks.begin(), b->marks.end(),
+                                 [&](const Bookmark& m) { return m.id == mark_id; });
+    if (it == b->marks.end()) return false;
+    const std::string label = "Remove bookmark" + (it->title.empty() ? std::string() : " “" + it->title + "”");
+    b->marks.erase(it);
+    return j.run(label, {id}, [&]() { lib.put(id, *b); });
+}
+
+std::vector<int> marks_between(const LibItem& book, const std::string& href, int from, int to) {
+    std::vector<int> out;
+    for (const auto& m : book.marks)
+        if (m.at.href == href && m.at.ch >= from && (to < 0 || m.at.ch < to)) out.push_back(m.id);
+    return out;
+}
+
 const std::vector<Verb>& verbs() {
     // Each verb against a fixture library (two books, opened directly). The
     // gate: through the door, a step, undo restores exactly, redo reproduces.
@@ -184,6 +264,12 @@ const std::vector<Verb>& verbs() {
          }},
         {"remove book", [](LibraryJournal& j, Library& l) {
              remove_book(j, l, "/books/one.epub");
+         }},
+        {"add bookmark", [](LibraryJournal& j, Library& l) {   // s008
+             add_bookmark(j, l, "/books/one.epub", Bookmark{0, Place{"OEBPS/c2.xhtml", 120}, 2, "Two", "It was"});
+         }},
+        {"remove bookmark", [](LibraryJournal& j, Library& l) {   // s008: the fixture's one.epub carries bookmark 1
+             remove_bookmark(j, l, "/books/one.epub", 1);
          }},
     };
     return kVerbs;

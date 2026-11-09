@@ -215,7 +215,8 @@ bool Shell::focus_is_text() const {  // helper
 // ─────────────────────────────────────────────────────────────────────────────
 bool Shell::open_book(const std::string& path) {  // helper: open + remember + repaint
     std::string error;
-    if (!m_reader.open(path, error)) {
+    save_library_now();   // s008: the book we are leaving keeps its place
+    if (!m_reader.open(path, error, m_library.place(path))) {   // s008: where you left off
         auto alert = Gtk::AlertDialog::create("Could not open this book");
         alert->set_detail(std::filesystem::path(path).filename().string() + "\n\n" + error);
         alert->show(*this);
@@ -239,7 +240,10 @@ void Shell::update_reader_ui() {  // helper: title, "3 of 12", grey prev/next
     if (m_act_page_next) m_act_page_next->set_enabled(m_reader.can_turn_forward());   // s003
     if (m_act_page_prev) m_act_page_prev->set_enabled(m_reader.can_turn_back());
     if (m_act_focus) m_act_focus->set_enabled(m_reader.has_book());   // s005
-    if (m_act_toc) m_act_toc->set_enabled(m_reader.book() && !m_reader.book()->toc().empty());   // s008
+    if (m_act_toc) m_act_toc->set_enabled(m_reader.has_book());   // s008
+    if (m_act_marks) m_act_marks->set_enabled(m_reader.has_book());
+    note_place();
+    update_bookmark_ui();
     const core::Book* b = m_reader.book();
     if (!b) {
         set_title("Ka-flip");
@@ -262,6 +266,47 @@ void Shell::update_reader_ui() {  // helper: title, "3 of 12", grey prev/next
     if (!b->meta().creators.empty()) where = b->meta().creators.front() + "  \u00b7  " + where;
     m_chapter_label.set_text(where);
     m_hud_label.set_text(where);   // s005: the focus HUD says the same
+}
+
+// s008: the reading position follows every report; it is written to disk
+// after a second and a half of quiet (and on leaving the book or the app),
+// not on every page.
+void Shell::note_place() {  // helper
+    const core::Book* b = m_reader.book();
+    const auto at = m_reader.place();
+    if (!b || !at || b->file().empty()) return;
+    if (m_library.place(b->file()) == at) return;
+    m_library.set_place(b->file(), *at);
+    m_place_timer.disconnect();
+    m_place_timer = Glib::signal_timeout().connect([this] {
+        save_library_now();
+        return false;
+    }, 1500);
+}
+
+void Shell::save_library_now() {  // helper
+    m_place_timer.disconnect();
+    if (m_library_file.empty()) return;
+    if (!m_library.save(m_library_file))
+        if (auto lg = log::get(log::Area::Library)) lg->warn("could not save {}", m_library_file);
+}
+
+void Shell::update_bookmark_ui() {  // helper
+    const core::Book* b = m_reader.book();
+    const auto at = m_reader.place();
+    const bool ready = b && at && m_reader.page_start() >= 0;
+    if (m_act_mark) m_act_mark->set_enabled(ready);
+    bool marked = false;
+    if (ready)
+        if (auto item = m_library.get(core::Library::book_id(b->file()))) {
+            const bool last = m_reader.page() + 1 >= m_reader.page_count();
+            marked = !core::library::marks_between(*item, at->href, m_reader.page_start(),
+                                                   last ? -1 : m_reader.page_end()).empty();
+        }
+    m_mark_button.set_icon_name(marked ? "kaflip-bookmarked-symbolic" : "kaflip-bookmark-symbolic");
+    m_mark_button.set_tooltip_text(marked ? "Remove this page's bookmark (Ctrl+B)" : "Bookmark this page (Ctrl+B)");
+    if (marked) m_mark_button.add_css_class("marked");
+    else        m_mark_button.remove_css_class("marked");
 }
 
 // s008: "The Red Door" -- the TOC entry the reader is in, or "" (no TOC, or

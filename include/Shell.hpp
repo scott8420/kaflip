@@ -92,6 +92,8 @@ private:
     void on_add_folder();                        // category: handler: folder chooser -> background scan (s006)
     void on_reading_style();                     // category: handler: open the Reading style window (s007)
     void on_contents();                          // category: handler: F9 -- the Contents popover, jump on a click (s008)
+    void on_bookmarks();                         // category: handler: Ctrl+Shift+B -- the same popover, Bookmarks tab (s008)
+    void on_bookmark_toggle();                   // category: handler: Ctrl+B -- mark / unmark the page, one undo step (s008)
     void on_library_remove(const std::string& path);   // category: handler: one undo step (s006)
     void on_library_menu(Gtk::Widget& tile, const std::string& path, double x, double y);   // category: handler: right-click a cover (s006)
     void on_recent_open(const std::string& p);   // category: handler: open a recent (parameterised)
@@ -134,6 +136,10 @@ private:
     std::string style_file() const;               // category: helper: the XDG config path (s007)
     void set_text_size(int pct, bool merge);      // category: helper: the Reading size, one undo step (s008a)
     std::string where_title() const;              // category: helper: the TOC title of the chapter in view, or "" (s008)
+    void open_nav(bool marks_tab);                // category: helper: build + show the Contents / Bookmarks popover (s008)
+    void update_bookmark_ui();                    // category: helper: the bar's bookmark button says whether this page is marked (s008)
+    void note_place();                            // category: helper: remember where we are, saved after a pause (s008)
+    void save_library_now();                      // category: helper: write library.json (s008: also on close)
 
     // Titlebar: brand logo + Open (start), hamburger (end).
     widgets::Button     m_logo_button;   // frameless brand mark; opens About
@@ -188,7 +194,10 @@ private:
     widgets::Button  m_toc_button;           // s008: Contents (F9)
     Gtk::Button*     m_hud_toc = nullptr;    // s008: and in the focus HUD (managed)
     bool             m_toc_open = false;     // s008: the HUD stays while the list is open
-    Glib::RefPtr<Gio::SimpleAction> m_act_toc;   // s008: greyed when the book has no TOC
+    Glib::RefPtr<Gio::SimpleAction> m_act_toc;   // s008: greyed with no book
+    Glib::RefPtr<Gio::SimpleAction> m_act_marks, m_act_mark;   // s008: the list, the toggle
+    widgets::Button  m_mark_button;          // s008: bookmark this page (Ctrl+B)
+    sigc::connection m_place_timer;          // s008: the reading position, saved after a pause
     widgets::Button  m_prev_button;
     widgets::Label   m_chapter_label;
     widgets::Button  m_next_button;

@@ -5,6 +5,7 @@
 #include <webkit/webkit.h>
 #include <gio/gio.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <functional>
 
@@ -193,6 +194,10 @@ int Reader::chapter_count() const {
 }
 
 bool Reader::open(const std::string& file, std::string& error) {
+    return open(file, error, std::nullopt);
+}
+
+bool Reader::open(const std::string& file, std::string& error, const std::optional<core::Place>& at) {
     auto book = std::make_unique<core::Book>();
     if (!book->open(file)) {
         error = book->error();
@@ -213,6 +218,10 @@ bool Reader::open(const std::string& file, std::string& error) {
     const auto& sp = m_book->spine();
     for (std::size_t i = 0; i < sp.size(); ++i)
         if (sp[i].linear) { first = static_cast<int>(i); break; }
+    if (at && go_to_place(*at)) {   // s008: where you left off
+        if (auto lg = log::get(log::Area::Book)) lg->info("resume at {} + {} chars", at->href, at->ch);
+        return true;
+    }
     go_to(first);
     return true;
 }
@@ -248,7 +257,9 @@ bool Reader::go_to(int index, core::Land land) {
     m_chapter = index;
     m_land = land;
     m_page = 0;
-    m_page_count = 0;   // until the new chapter reports
+    m_page_count = 0;
+    m_start = m_end = m_mark = -1;
+    m_snippet.clear();   // until the new chapter reports
     const std::string uri = core::book_uri(m_token, m_book->spine()[static_cast<std::size_t>(index)].path);
     if (auto lg = log::get(log::Area::Book))
         lg->info("chapter {}/{} -> {}", index + 1, chapter_count(), uri);
@@ -278,12 +289,43 @@ bool Reader::go_to_path(const std::string& path, const std::string& fragment) {
     m_land = core::Land::First;
     m_page = 0;
     m_page_count = 0;
+    m_start = m_end = m_mark = -1;
+    m_snippet.clear();
     const std::string uri = core::book_uri(m_token, path) + "#" + core::percent_encode_path(fragment);
     if (auto lg = log::get(log::Area::Book))
         lg->info("toc -> chapter {}/{} {}", index + 1, chapter_count(), uri);
     webkit_web_view_load_uri(m_view, uri.c_str());
     m_changed.emit();
     return true;
+}
+
+bool Reader::go_to_place(const core::Place& at) {
+    if (!m_book) return false;
+    const int index = m_book->spine_index_of(at.href);
+    if (index < 0) return false;
+    const int ch = std::max(0, at.ch);
+    if (index == m_chapter && m_page_count > 0) {
+        run_js("window.kaflip && window.kaflip.toChar(" + std::to_string(ch) + ")");
+        return true;
+    }
+    m_chapter = index;
+    m_land = core::Land::First;
+    m_page = 0;
+    m_page_count = 0;
+    m_start = m_end = m_mark = -1;
+    m_snippet.clear();
+    // The hash is read once by paginate.js at the start (no element has this id).
+    const std::string uri = core::book_uri(m_token, at.href) + "#kaflip-char=" + std::to_string(ch);
+    if (auto lg = log::get(log::Area::Book))
+        lg->info("place -> chapter {}/{} {}", index + 1, chapter_count(), uri);
+    webkit_web_view_load_uri(m_view, uri.c_str());
+    m_changed.emit();
+    return true;
+}
+
+std::optional<core::Place> Reader::place() const {
+    if (!m_book || m_chapter < 0 || m_mark < 0) return std::nullopt;
+    return core::Place{m_book->spine()[static_cast<std::size_t>(m_chapter)].path, m_mark};
 }
 
 void Reader::on_committed(const std::string& uri) {
@@ -298,6 +340,8 @@ void Reader::on_committed(const std::string& uri) {
     m_land = core::Land::First;
     m_page = 0;
     m_page_count = 0;
+    m_start = m_end = m_mark = -1;
+    m_snippet.clear();
     m_changed.emit();
 }
 
@@ -326,11 +370,16 @@ void Reader::on_page_report(const std::string& msg) {
         if (auto lg = log::get(log::Area::Web)) lg->warn("bad page report '{}'", msg);
         return;
     }
-    if (r->page == m_page && r->count == m_page_count) return;
+    if (r->page == m_page && r->count == m_page_count && r->start == m_start &&
+        r->end == m_end && r->mark == m_mark) return;
     m_page = r->page;
     m_page_count = r->count;
+    m_start = r->start;   // s008
+    m_end = r->end;
+    m_mark = r->mark;
+    m_snippet = r->snippet;
     if (auto lg = log::get(log::Area::Book))
-        lg->debug("page {}/{} (chapter {})", m_page + 1, m_page_count, m_chapter + 1);
+        lg->debug("page {}/{} (chapter {}) chars [{}, {}) mark {}", m_page + 1, m_page_count, m_chapter + 1, m_start, m_end, m_mark);
     m_changed.emit();
 }
 

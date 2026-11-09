@@ -16,6 +16,9 @@
     <file preprocess="xml-stripblanks" alias="kaflip-hero-logo.svg">icons/scalable/apps/kaflip-hero-logo.svg</file>
     <!-- s004: rail glyphs (currentColor; the tab's CSS colour paints them) -->
     <file preprocess="xml-stripblanks" alias="kaflip-style-symbolic.svg">icons/scalable/apps/kaflip-style-symbolic.svg</file>
+    <!-- s008: bookmark this page / this page is bookmarked -->
+    <file preprocess="xml-stripblanks" alias="kaflip-bookmark-symbolic.svg">icons/scalable/apps/kaflip-bookmark-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="kaflip-bookmarked-symbolic.svg">icons/scalable/apps/kaflip-bookmarked-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="kaflip-tab-library-symbolic.svg">icons/scalable/apps/kaflip-tab-library-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="kaflip-tab-reader-symbolic.svg">icons/scalable/apps/kaflip-tab-reader-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="kaflip-tab-recent-symbolic.svg">icons/scalable/apps/kaflip-tab-recent-symbolic.svg</file>

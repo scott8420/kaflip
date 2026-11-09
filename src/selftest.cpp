@@ -541,6 +541,17 @@ int main() {
               !core::parse_page_report("-1/4"));
         check("report: impossible numbers refused",
               !core::parse_page_report("0/0") && !core::parse_page_report("4/4"));
+        // s008: the place in the text rides along.
+        auto rp = core::parse_page_report("3/11@1200,1585,1230\tIt was a dark night");
+        check("report: place + snippet", rp && rp->page == 3 && rp->count == 11 && rp->start == 1200 &&
+              rp->end == 1585 && rp->mark == 1230 && rp->snippet == "It was a dark night");
+        auto rn = core::parse_page_report("0/1@0,0,0");
+        check("report: an empty chapter's place, no snippet", rn && rn->end == 0 && rn->snippet.empty());
+        check("report: old form leaves the place unknown", r && r->start == -1 && r->mark == -1);
+        check("report: bad places refused",
+              !core::parse_page_report("3/11@1,2") && !core::parse_page_report("3/11@5,2,3") &&
+              !core::parse_page_report("3/11@a,2,3") && !core::parse_page_report("3/11@-1,2,3") &&
+              !core::parse_page_report("3/11@1,2,3,4") && !core::parse_page_report("9/4@1,2,3"));
     }
     // ── Tabs: the rail's one list (s004) ──────────────────────────────────────
     {
@@ -708,7 +719,9 @@ int main() {
             core::LibraryJournal j{l};
             Fix() {
                 l.set_door([this] { return j.open(); });
-                core::library::note_opened(l, LibItem{K::Book, "/books/one.epub", "One", "Scott"});
+                LibItem one{K::Book, "/books/one.epub", "One", "Scott"};
+                one.marks.push_back(core::Bookmark{1, core::Place{"OEBPS/c1.xhtml", 5}, 1, "One", "Call me"});   // s008
+                core::library::note_opened(l, one);
                 core::library::note_opened(l, LibItem{K::Book, "/books/two.epub", "Two"});
             }
         };
@@ -770,6 +783,54 @@ int main() {
             Fix f;
             core::library::add_folder(f.j, f.l, "/shelf", {LibItem{K::Book, "/shelf/a.epub", "A"}});
             Library back;
+            // s008: positions + bookmarks
+            {
+                Fix g;
+                check("place: none yet", !g.l.place("/books/one.epub"));
+                const int before_strays = g.l.strays();
+                g.l.set_place("/books/one.epub", core::Place{"OEBPS/c3.xhtml", 4410});
+                check("place: set, no stray, not a step", g.l.strays() == before_strays && !g.j.can_undo() &&
+                      g.l.place("/books/one.epub") == core::Place{"OEBPS/c3.xhtml", 4410});
+                g.l.set_place("/books/one.epub", core::Place{"", 9});
+                check("place: an empty href is ignored", g.l.place("/books/one.epub")->ch == 4410);
+                Library back2;
+                check("place: JSON round-trip", back2.from_json(g.l.to_json()) &&
+                      back2.place("/books/one.epub") == core::Place{"OEBPS/c3.xhtml", 4410});
+                check("marks: JSON round-trip", back2.get(Library::book_id("/books/one.epub"))->marks ==
+                      g.l.get(Library::book_id("/books/one.epub"))->marks &&
+                      back2.to_json() == g.l.to_json());
+
+                using core::Bookmark;
+                using core::Place;
+                const auto marks = [&] { return g.l.get(Library::book_id("/books/one.epub"))->marks; };
+                check("marks: add", core::library::add_bookmark(g.j, g.l, "/books/one.epub",
+                      Bookmark{0, Place{"OEBPS/c0.xhtml", 3}, 0, "Zero", "x"}) && marks().size() == 2);
+                check("marks: in reading order, fresh id", marks()[0].at.href == "OEBPS/c0.xhtml" && marks()[0].id == 2,
+                      std::to_string(marks()[0].id));
+                check("marks: labelled step", g.j.undo_label() == "Add bookmark “Zero”", g.j.undo_label());
+                check("marks: the same place twice -> no", !core::library::add_bookmark(g.j, g.l, "/books/one.epub",
+                      Bookmark{0, Place{"OEBPS/c0.xhtml", 3}, 0, "Zero", "x"}));
+                check("marks: a book not in the library -> no", !core::library::add_bookmark(g.j, g.l, "/x.epub",
+                      Bookmark{0, Place{"a", 1}, 0, "", ""}));
+                g.l.set_place("/books/one.epub", Place{"OEBPS/c9.xhtml", 77});
+                g.j.undo();
+                check("marks: undo takes it away", marks().size() == 1);
+                check("marks: undo does not move the reading position",
+                      g.l.place("/books/one.epub") == Place{"OEBPS/c9.xhtml", 77});
+                check("marks: remove by id", core::library::remove_bookmark(g.j, g.l, "/books/one.epub", 1) &&
+                      marks().empty());
+                check("marks: remove an unknown id -> no", !core::library::remove_bookmark(g.j, g.l, "/books/one.epub", 42));
+                g.j.undo();
+                check("marks: remove undone", marks().size() == 1 && marks()[0].id == 1);
+                const auto one = *g.l.get(Library::book_id("/books/one.epub"));
+                check("marks: on this page [from, to)", core::library::marks_between(one, "OEBPS/c1.xhtml", 0, 6) == std::vector<int>{1} &&
+                      core::library::marks_between(one, "OEBPS/c1.xhtml", 6, 9).empty() &&
+                      core::library::marks_between(one, "OEBPS/c1.xhtml", 5, -1) == std::vector<int>{1} &&
+                      core::library::marks_between(one, "OEBPS/c2.xhtml", 0, -1).empty());
+                core::library::note_opened(g.l, LibItem{K::Book, "/books/one.epub", "One (new title)", "Scott"});
+                check("marks: re-opening keeps them", marks().size() == 1);
+                check("marks: no strays", g.l.strays() == 0);
+            }
             check("library: JSON round-trips", back.from_json(f.l.to_json()) && back.to_json() == f.l.to_json());
             check("library: junk JSON is refused", !back.from_json("{nope"));
             const auto dir = std::filesystem::temp_directory_path() / "kaflip_selftest_lib";

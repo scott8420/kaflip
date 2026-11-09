@@ -11,6 +11,10 @@
 #include <gtkmm/popover.h>
 #include <gtkmm/listboxrow.h>   // s008: Contents
 #include <gtkmm/adjustment.h>
+#include <gtkmm/togglebutton.h>
+#include "Covers.hpp"
+#include <functional>
+#include <memory>
 #include <algorithm>
 #include <glibmm/main.h>
 #include <giomm/liststore.h>
@@ -134,14 +138,18 @@ void Shell::on_library_menu(Gtk::Widget& tile, const std::string& path, double x
     pop->popup();
 }
 
-// s008: Contents. A popover list built per open (the library menu's shape),
-// hanging off whichever Contents button is showing: the bar's, or the focus
-// HUD's (the HUD stays up while it is open). The row the reader is in is
-// selected and scrolled to. A click (or Enter) jumps -- a view position, like
-// a page turn, so not an undo step -- and the keyboard goes back to the page.
-void Shell::on_contents() {  // handler
+// s008: Contents and Bookmarks -- one popover, two tabs, built per open
+// (the library menu's shape), hung off whichever list button is showing: the
+// bar's, or the focus HUD's (the HUD stays up while it is open). A click (or
+// Enter) jumps -- a view position, like a page turn, not an undo step -- and
+// the keyboard goes back to the page. Removing a bookmark IS a step.
+void Shell::on_contents()  { open_nav(false); }   // handler: F9
+void Shell::on_bookmarks() { open_nav(true); }    // handler: Ctrl+Shift+B
+
+void Shell::open_nav(bool marks_tab) {  // helper
     const core::Book* b = m_reader.book();
-    if (!b || b->toc().empty() || m_toc_open) return;
+    if (!b || m_toc_open) return;
+    if (b->toc().empty()) marks_tab = true;   // nothing else to show
     Gtk::Widget* anchor = &m_toc_button;
     if (m_focus) {
         anchor = m_hud_toc;
@@ -151,19 +159,39 @@ void Shell::on_contents() {  // handler
         select_tab("reader");
     }
     if (!anchor) return;
+    const std::string book_path = b->file();
 
     auto pop = Gtk::make_managed<Gtk::Popover>();
     pop->add_css_class("toc-popover");
-    auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    auto head = Gtk::make_managed<Gtk::Label>("Contents");
-    head->add_css_class("toc-head");
-    head->set_xalign(0.0f);
-    box->append(*head);
-    auto scroll = Gtk::make_managed<Gtk::ScrolledWindow>();
-    scroll->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
-    scroll->set_propagate_natural_height(true);
-    scroll->set_max_content_height(std::max(240, get_height() * 2 / 3));
-    scroll->set_size_request(340, -1);
+    auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 8);
+    auto tabs = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 0);
+    tabs->add_css_class("linked");
+    tabs->add_css_class("nav-tabs");
+    tabs->set_halign(Gtk::Align::START);
+    tabs->set_margin_start(6);
+    auto t_toc = Gtk::make_managed<Gtk::ToggleButton>("Contents");
+    auto t_marks = Gtk::make_managed<Gtk::ToggleButton>("Bookmarks");
+    t_marks->set_group(*t_toc);
+    t_toc->set_sensitive(!b->toc().empty());
+    tabs->append(*t_toc);
+    tabs->append(*t_marks);
+    box->append(*tabs);
+    auto stack = Gtk::make_managed<Gtk::Stack>();
+    stack->set_vhomogeneous(false);
+    stack->set_interpolate_size(true);
+    box->append(*stack);
+
+    const auto make_scroll = [this]() {
+        auto sc = Gtk::make_managed<Gtk::ScrolledWindow>();
+        sc->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
+        sc->set_propagate_natural_height(true);
+        sc->set_max_content_height(std::max(240, get_height() * 2 / 3));
+        sc->set_size_request(360, -1);
+        return sc;
+    };
+
+    // ── Contents ────────────────────────────────────────────────────────────
+    auto scroll = make_scroll();
     auto list = Gtk::make_managed<Gtk::ListBox>();
     list->add_css_class("toc-list");
     list->set_selection_mode(Gtk::SelectionMode::SINGLE);
@@ -200,19 +228,89 @@ void Shell::on_contents() {  // handler
         m_reader.go_to_path(e.path, e.fragment);
     });
     scroll->set_child(*list);
-    box->append(*scroll);
+    stack->add(*scroll, "toc");
+
+    // ── Bookmarks ───────────────────────────────────────────────────────────
+    auto mscroll = make_scroll();
+    auto mlist = Gtk::make_managed<Gtk::ListBox>();
+    mlist->add_css_class("toc-list");
+    mlist->set_selection_mode(Gtk::SelectionMode::SINGLE);
+    mlist->set_activate_on_single_click(true);
+    mlist->set_placeholder(*Gtk::make_managed<Gtk::Label>("No bookmarks yet.\nCtrl+B marks the page you are on."));
+    mscroll->set_child(*mlist);
+    stack->add(*mscroll, "marks");
+    // Rebuilt in place after a remove (the popover stays open).
+    auto shown = std::make_shared<std::vector<core::Bookmark>>();
+    auto fill = std::make_shared<std::function<void()>>();
+    *fill = [this, mlist, shown, book_path, fill_w = std::weak_ptr<std::function<void()>>(fill)]() {
+        while (auto* c = mlist->get_first_child()) mlist->remove(*c);
+        shown->clear();
+        if (auto item = m_library.get(core::Library::book_id(book_path))) *shown = item->marks;
+        for (const auto& m : *shown) {
+            auto row = Gtk::make_managed<Gtk::ListBoxRow>();
+            auto line = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
+            auto text = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 2);
+            text->set_hexpand(true);
+            auto t = Gtk::make_managed<Gtk::Label>(m.title.empty() ? "Bookmark" : m.title);
+            t->set_xalign(0.0f);
+            t->set_ellipsize(Pango::EllipsizeMode::END);
+            t->add_css_class("toc-top");
+            auto sn = Gtk::make_managed<Gtk::Label>(m.snippet);
+            sn->set_xalign(0.0f);
+            sn->set_ellipsize(Pango::EllipsizeMode::END);
+            sn->add_css_class("dim-label");
+            sn->add_css_class("mark-snippet");
+            text->append(*t);
+            if (!m.snippet.empty()) text->append(*sn);
+            auto del = Gtk::make_managed<Gtk::Button>();
+            del->set_icon_name("edit-delete-symbolic");
+            del->set_has_frame(false);
+            del->set_valign(Gtk::Align::CENTER);
+            del->set_tooltip_text("Remove this bookmark (Ctrl+Z puts it back)");
+            const int id = m.id;
+            del->signal_clicked().connect([this, book_path, id, fill_w] {
+                core::library::remove_bookmark(m_lib_journal, m_library, book_path, id);
+                if (auto f = fill_w.lock()) Glib::signal_idle().connect_once([f] { (*f)(); });
+            });
+            line->set_margin_start(10);
+            line->set_margin_end(4);
+            line->set_margin_top(5);
+            line->set_margin_bottom(5);
+            line->append(*text);
+            line->append(*del);
+            row->set_child(*line);
+            row->set_tooltip_text(m.snippet);
+            mlist->append(*row);
+        }
+    };
+    (*fill)();
+    mlist->signal_row_activated().connect([this, pop, shown](Gtk::ListBoxRow* row) {
+        const int i = row->get_index();
+        if (i < 0 || static_cast<std::size_t>(i) >= shown->size()) return;
+        const core::Place at = (*shown)[static_cast<std::size_t>(i)].at;
+        pop->popdown();
+        m_reader.go_to_place(at);
+    });
+
+    t_toc->signal_toggled().connect([stack, t_toc] { if (t_toc->get_active()) stack->set_visible_child("toc"); });
+    t_marks->signal_toggled().connect([stack, t_marks] { if (t_marks->get_active()) stack->set_visible_child("marks"); });
+    (marks_tab ? t_marks : t_toc)->set_active(true);
+    stack->set_visible_child(marks_tab ? "marks" : "toc");
+
     pop->set_child(*box);
     pop->set_parent(*anchor);
     pop->set_position(Gtk::PositionType::TOP);
     m_toc_open = true;
-    pop->signal_closed().connect([this, pop] {
+    pop->signal_closed().connect([this, pop, fill] {   // `fill` lives as long as the popover
         m_toc_open = false;
         if (m_focus) poke_hud();
         m_reader.focus_page();
         Glib::signal_idle().connect_once([pop] { pop->unparent(); });
     });
     pop->popup();
-    if (here_row) {
+    if (marks_tab) {
+        if (auto* r = mlist->get_row_at_index(0)) r->grab_focus(); else mlist->grab_focus();
+    } else if (here_row) {
         list->select_row(*here_row);
         // Scroll to it once the list has its size.
         Glib::signal_idle().connect_once([scroll, here_row] {
@@ -224,6 +322,35 @@ void Shell::on_contents() {  // handler
     } else {
         list->grab_focus();
     }
+}
+
+// s008: Ctrl+B / the bar's bookmark button. A bookmark on the page on screen
+// -> remove it; none -> add one at the page's first character, named by the
+// chapter's TOC title and the page's first words. Each is ONE undo step on the
+// library journal (Ctrl+Z on the reader page means the library).
+void Shell::on_bookmark_toggle() {  // handler
+    const core::Book* b = m_reader.book();
+    const auto at = m_reader.place();
+    if (!b || !at || m_reader.page_start() < 0) return;
+    const std::string path = b->file();
+    if (!m_library.has_book(path))   // removed from the library while open
+        core::library::note_opened(m_library, covers::describe(*b, path));
+    const auto item = m_library.get(core::Library::book_id(path));
+    if (!item) return;
+    const bool last = m_reader.page() + 1 >= m_reader.page_count();
+    const auto ids = core::library::marks_between(*item, at->href, m_reader.page_start(),
+                                                  last ? -1 : m_reader.page_end());
+    if (!ids.empty()) {
+        for (int id : ids) core::library::remove_bookmark(m_lib_journal, m_library, path, id);
+        return;
+    }
+    core::Bookmark mk;
+    mk.at = core::Place{at->href, m_reader.page_start()};
+    mk.spine = m_reader.chapter();
+    mk.title = where_title();
+    if (mk.title.empty()) mk.title = "Chapter " + std::to_string(m_reader.chapter() + 1);
+    mk.snippet = m_reader.snippet();
+    core::library::add_bookmark(m_lib_journal, m_library, path, mk);
 }
 
 void Shell::on_focus_mode() { set_focus_mode(!m_focus); }  // handler: F11 (s005)

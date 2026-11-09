@@ -42,8 +42,20 @@ struct PageMargins { int x = 48; int y = 40; int max_line = 760; bool spread = f
 // scrollLeft = n * innerWidth. Images are held inside one page.
 std::string pagination_css(const PageMargins& m);
 
-struct PageReport { int page = 0; int count = 0; };
+// s008: paginate.js also says where the page is in the chapter's text --
+// "3/11@1200,1585,1230\tIt was a dark..." : the first character on the
+// page, the first on the next (the chapter's length on the last page), the
+// MARK (the character the reader is held to through relayouts: where they
+// turned to, or where a bookmark / the saved position sent them), and the
+// page's first words. Old "3/11" still parses (the place fields stay -1).
+struct PageReport {
+    int page = 0; int count = 0;
+    int start = -1, end = -1, mark = -1;
+    std::string snippet;
+};
 // "3/11" -> {3, 11}. Rejects junk, negatives, a zero count and page >= count.
 std::optional<PageReport> parse_page_report(const std::string& s);
+// Just the "3/11" part (s008: parse_page_report's first half).
+std::optional<PageReport> parse_page_counts(const std::string& s);
 
 }  // namespace kaflip::core

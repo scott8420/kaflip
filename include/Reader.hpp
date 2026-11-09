@@ -2,6 +2,7 @@
 #include "widgets/Widgets.hpp"
 #include "core/Epub.hpp"
 #include "core/Paging.hpp"   // s003
+#include "core/Library.hpp"  // s008: core::Place
 
 #include <sigc++/signal.h>
 
@@ -36,6 +37,9 @@ public:
     // Open an EPUB and show its first linear spine item. On failure the old
     // book (if any) stays open and `error` says why.
     bool open(const std::string& file, std::string& error);
+    // s008: open at a saved place (falls back to the start when the place's
+    // chapter is not in this book any more).
+    bool open(const std::string& file, std::string& error, const std::optional<core::Place>& at);
 
     bool               has_book() const { return m_book != nullptr; }
     const core::Book*  book() const { return m_book.get(); }
@@ -52,6 +56,15 @@ public:
     // another chapter: it loads with #fragment and lands there. false = the
     // path is not in the spine.
     bool go_to_path(const std::string& path, const std::string& fragment);
+    // s008: a place -- a chapter's zip path + a character into its text.
+    bool go_to_place(const core::Place& at);
+    // Where the reader is: the chapter + the MARK (the character it is held
+    // to). nullopt until the page has reported this chapter.
+    std::optional<core::Place> place() const;
+    // The page on screen as characters of the chapter: [start, end).
+    int page_start() const { return m_start; }
+    int page_end() const { return m_end; }
+    const std::string& snippet() const { return m_snippet; }   // the page's first words
     // s008: give the page the keyboard (after a popover closes).
     void focus_page();
 
@@ -97,6 +110,8 @@ private:
     int                         m_chapter = -1;
     int                         m_page = 0;         // s003
     int                         m_page_count = 0;   // s003: 0 until the page reports
+    int                         m_start = -1, m_end = -1, m_mark = -1;   // s008: -1 until reported
+    std::string                 m_snippet;                               // s008
     core::Land                  m_land = core::Land::First;
     WebKitUserStyleSheet*       m_sheet = nullptr;   // s007: the book sheet now in use
     sigc::signal<void()>        m_changed;

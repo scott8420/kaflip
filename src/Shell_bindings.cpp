@@ -31,6 +31,8 @@ void Shell::bind_actions() {  // bindings: actions + recents group
     add_action("add-folder", sigc::mem_fun(*this, &Shell::on_add_folder));                 // s006
     add_action("reading-style", sigc::mem_fun(*this, &Shell::on_reading_style));           // s007
     m_act_toc = add_action("contents", sigc::mem_fun(*this, &Shell::on_contents));         // s008
+    m_act_marks = add_action("bookmarks", sigc::mem_fun(*this, &Shell::on_bookmarks));
+    m_act_mark = add_action("bookmark", sigc::mem_fun(*this, &Shell::on_bookmark_toggle));
     // s008a -- text size from the keyboard: 10% a press, Ctrl+0 back to 100%.
     add_action("text-bigger",  [this] { set_text_size(std::min(220, m_styles.at(core::Styles::kReading).size_pct + 10), false); });
     add_action("text-smaller", [this] { set_text_size(std::max(60,  m_styles.at(core::Styles::kReading).size_pct - 10), false); });
@@ -54,7 +56,7 @@ void Shell::bind_actions() {  // bindings: actions + recents group
 
     // s006 -- the library's door, change hook and journal (the stones' shape).
     m_library.set_door([this] { return m_lib_journal.open(); });
-    m_library.set_on_change([this] { queue_library_repaint(); });
+    m_library.set_on_change([this] { queue_library_repaint(); update_bookmark_ui(); });
     m_lib_journal.set_on_change([this] { update_undo_ui(); });
     // s005: if the desktop takes us out of fullscreen (a WM key), leave focus mode too.
     property_fullscreened().signal_changed().connect([this] {

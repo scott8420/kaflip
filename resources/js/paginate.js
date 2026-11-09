@@ -14,6 +14,79 @@
     const W = () => window.innerWidth;
     let page = 0, count = 1, wantLast = false, sent = '';
     let wantId = '';   // s008: an anchor we were sent to -- kept through relayouts
+    let mark = -1;     // s008: the character the reader is held to (-1 = take the page's first)
+
+    // s008 -- places in the text. Every non-blank text node in the body, in
+    // document order, with its starting character. Text flows column after
+    // column, so a character's page only grows with its offset: two binary
+    // searches find the first character on a page, or a character's page.
+    let texts = null, total = 0;
+    function index() {
+        if (texts) return;
+        texts = [];
+        total = 0;
+        const top = document.body || document.documentElement;
+        const walk = document.createTreeWalker(top, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            const v = n.nodeValue;
+            if (!v || !/\S/.test(v)) continue;
+            const p = n.parentElement;
+            if (p && /^(script|style|head|title)$/i.test(p.tagName)) continue;
+            texts.push({ node: n, start: total, len: v.length });
+            total += v.length;
+        }
+    }
+    function xOf(t, off) {
+        off = Math.max(0, Math.min(off, t.len - 1));
+        const r = document.createRange();
+        r.setStart(t.node, off);
+        r.setEnd(t.node, off + 1);
+        const rects = r.getClientRects();
+        let rc = rects.length ? rects[0] : null;
+        if (!rc && t.node.parentElement) rc = t.node.parentElement.getBoundingClientRect();
+        return rc ? rc.left + root().scrollLeft : 0;
+    }
+    const pageOfX = (x) => Math.floor((x + 1) / W());
+    // The first character whose page is >= p (total when there is none).
+    function charAt(p) {
+        index();
+        let lo = 0, hi = texts.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (pageOfX(xOf(texts[mid], texts[mid].len - 1)) >= p) hi = mid; else lo = mid + 1;
+        }
+        if (lo >= texts.length) return total;
+        const t = texts[lo];
+        let a = 0, b = t.len - 1;
+        while (a < b) {
+            const m = (a + b) >> 1;
+            if (pageOfX(xOf(t, m)) >= p) b = m; else a = m + 1;
+        }
+        return t.start + a;
+    }
+    // The page a character sits on.
+    function pageOfChar(c) {
+        index();
+        if (!texts.length) return 0;
+        let lo = 0, hi = texts.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi + 1) >> 1;
+            if (texts[mid].start <= c) lo = mid; else hi = mid - 1;
+        }
+        const t = texts[lo];
+        return pageOfX(xOf(t, Math.min(c - t.start, t.len - 1)));
+    }
+    function snippetAt(c) {
+        index();
+        let out = '';
+        for (const t of texts) {
+            if (t.start + t.len <= c) continue;
+            out += t.node.nodeValue.slice(Math.max(0, c - t.start)) + ' ';
+            if (out.length > 200) break;
+        }
+        out = out.replace(/\s+/g, ' ').trim();
+        return out.length > 90 ? out.slice(0, 90).replace(/\s+\S*$/, '') + '\u2026' : out;
+    }
 
     // The last column ends one right margin short of a full page, and WebKit
     // clamps scrollLeft to the overflow -- so without help the last page sits
@@ -40,7 +113,11 @@
         return n;
     }
     function report() {
-        const msg = page + '/' + count;
+        // s008: "page/count@start,end,mark<TAB>first words"
+        const s = charAt(page);
+        const e = page + 1 < count ? charAt(page + 1) : total;
+        if (mark < 0) mark = s;
+        const msg = page + '/' + count + '@' + s + ',' + Math.max(s, e) + ',' + mark + '\t' + snippetAt(s);
         if (msg === sent) return;
         sent = msg;
         try { window.webkit.messageHandlers.kaflip.postMessage(msg); } catch (e) { /* no host */ }
@@ -52,6 +129,7 @@
     function go(n) {
         wantLast = false;
         wantId = '';
+        mark = -1;   // s008: held to the new page's first character (set in report)
         count = measure();
         page = Math.min(Math.max(0, n | 0), count - 1);
         show();
@@ -67,6 +145,7 @@
         const old = count;
         count = measure();
         if (wantLast) page = count - 1;
+        else if (mark >= 0) page = Math.min(count - 1, pageOfChar(mark));   // s008: the same words
         else if (old !== count) page = Math.min(count - 1, Math.floor(page * count / old));
         else page = Math.min(page, count - 1);
         show();
@@ -83,9 +162,20 @@
         wantId = id;
         return true;
     }
+    // s008: a character -- the saved position or a bookmark. Held there.
+    function toChar(c) {
+        c = Math.max(0, c | 0);
+        count = measure();
+        go(Math.min(count - 1, pageOfChar(c)));
+        mark = c;
+        sent = '';
+        report();
+    }
     function toHash() {
         let id = location.hash.slice(1);
         try { id = decodeURIComponent(id); } catch (e) { /* keep it raw */ }
+        const m = /^kaflip-char=(\d+)$/.exec(id);
+        if (m) { toChar(parseInt(m[1], 10)); return true; }
         return toId(id);
     }
 
@@ -97,6 +187,7 @@
         last: last,
         relayout: relayout,
         anchor: (id) => { if (!toId(id)) go(0); },   // s008: a TOC entry in this chapter
+        toChar: toChar,                               // s008: a bookmark / the saved place
     };
 
     // Anything else that scrolls (WebKit's own anchor jump, a selection drag)
@@ -106,6 +197,7 @@
         if (Math.abs(root().scrollLeft - want) > 1) {
             wantLast = false;
             wantId = '';
+            mark = -1;
             page = Math.min(Math.max(0, Math.round(root().scrollLeft / W())), count - 1);
             show();
         }
@@ -124,7 +216,9 @@
     });
     window.addEventListener('resize', relayout);
     window.addEventListener('hashchange', toHash);
-    window.addEventListener('load', () => { if (!toHash()) relayout(); });
+    // s008: the hash was honoured once, at the start; on load just re-measure
+    // (wantId / mark keep the place) -- a page turned meanwhile must stand.
+    window.addEventListener('load', relayout);
     for (const img of document.images) img.addEventListener('load', relayout);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayout);
 

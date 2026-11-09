@@ -36,6 +36,7 @@ Shell::Shell()
       m_hero("shell.reader.hero", Gtk::Orientation::VERTICAL, 14),
       m_reader_nav("shell.reader.nav", Gtk::Orientation::HORIZONTAL, 6),
       m_toc_button("shell.reader.contents"),
+      m_mark_button("shell.reader.bookmark"),
       m_prev_button("shell.reader.prev"),
       m_chapter_label("shell.reader.chapter"),
       m_next_button("shell.reader.next"),
@@ -83,6 +84,8 @@ void Shell::build_ui() {
 
     m_library_file = library_file();
     m_library.load(m_library_file);
+    // s008: the reading position is saved after a pause; closing must not lose it.
+    signal_close_request().connect([this] { save_library_now(); return false; }, false);
     rebuild_library();
     select_tab("library");
 
