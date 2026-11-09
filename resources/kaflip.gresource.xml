@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kaflip resource bundle. The resource-pipeline paradigm: an app asset carried
+     the symbolic way (a currentColor SVG under the freedesktop icon-theme shape)
+     so set_icon_name("kaflip-logo-symbolic") resolves it out of the compiled-in
+     binary and GTK recolours it to the theme foreground -- no icon installed on
+     the user's disk.
+
+     Gotcha the shape encodes: GTK's icon lookup is RIGID about the trailing
+     .../scalable/apps/ path, so the prefix ends there and App::on_activate
+     passes only /io/github/scott8420/Kaflip/icons to add_resource_path (GTK appends
+     scalable/apps/ itself). The prefix mirrors the app-id; both move together in
+     a one-pass rename. See docs/resources-and-dialog-lifetime.md. -->
+<gresources>
+  <gresource prefix="/io/github/scott8420/Kaflip/icons/scalable/apps">
+    <file preprocess="xml-stripblanks" alias="kaflip-logo-symbolic.svg">icons/scalable/apps/kaflip-logo-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="kaflip-hero-logo.svg">icons/scalable/apps/kaflip-hero-logo.svg</file>
+    <!-- s004: rail glyphs (currentColor; the tab's CSS colour paints them) -->
+    <file preprocess="xml-stripblanks" alias="kaflip-tab-library-symbolic.svg">icons/scalable/apps/kaflip-tab-library-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="kaflip-tab-reader-symbolic.svg">icons/scalable/apps/kaflip-tab-reader-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="kaflip-tab-recent-symbolic.svg">icons/scalable/apps/kaflip-tab-recent-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="kaflip-tab-registry-symbolic.svg">icons/scalable/apps/kaflip-tab-registry-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="kaflip-tab-undo-symbolic.svg">icons/scalable/apps/kaflip-tab-undo-symbolic.svg</file>
+  </gresource>
+  <!-- s004: the skin (Trails' look) -->
+  <gresource prefix="/io/github/scott8420/Kaflip">
+    <file alias="kaflip.css">kaflip.css</file>
+  </gresource>
+  <!-- s003: the pagination script, injected by Reader as a WebKit user script. -->
+  <gresource prefix="/io/github/scott8420/Kaflip/js">
+    <file alias="paginate.js">js/paginate.js</file>
+  </gresource>
+</gresources>

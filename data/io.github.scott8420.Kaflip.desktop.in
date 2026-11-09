@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Ka-flip
+GenericName=EPUB Reader
+Comment=Read EPUB books with your own fonts, colors and an immersive reading mode
+Exec=@BINDIR@/kaflip %F
+Icon=io.github.scott8420.Kaflip
+Terminal=false
+Categories=Office;Viewer;GTK;
+MimeType=application/epub+zip;
+Keywords=ebook;epub;book;reader;
+StartupNotify=true

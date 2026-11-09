@@ -1,0 +1,186 @@
+/* Ka-flip skin -- TRAILS' look (s004; trails/resources/trails.css, s015), which
+   is Rouster's. Its own dark, always (App.cpp asks GTK for its dark variant so
+   menus, popovers, dialogs and the file chooser match): a deep gradient per
+   page on the window itself, a frosted rail with big coloured glyphs,
+   translucent cards, ghost pill buttons. The book itself sits on a rounded
+   card; its colours stay the publisher's until reading style arrives.
+   Plain GTK4 CSS -- no libadwaita, no var(), no double hyphen inside a comment.
+
+   Contract (the class names the code relies on; restyle them, keep them):
+     window.kaflip               the window; it also carries .page-<id>
+     window.kaflip.focus         focus mode (fullscreen, chrome hidden)
+     .rail-scroll .rail          the page rail; rows carry .tab-<id>
+     .rail-icon .rail-label      inside a rail row
+     .page                       every stack page (padding)
+     .book-card                  the frame around the WebKit view
+     .reader-nav                 the pill bar under the book
+     .focus-hud                  the bar that fades in over the book in focus mode
+     .hero .hero-title .hero-blurb   the Reader's empty state
+     .recent-row .recent-title .recent-where   a row on the Recent page
+     .panel                      cards                                         */
+
+@define-color c_library  #d2c8f7;
+@define-color c_reader   #74decd;
+@define-color c_recent   #f1bf8c;
+@define-color c_registry #94d3f1;
+@define-color c_undo     #f6b8c0;
+
+/* ── the window ─────────────────────────────────────────────────────────── */
+window.kaflip { background-color: #14262a; color: #f1f7f8; }
+window.kaflip headerbar {
+  background: transparent; box-shadow: none; border: none;
+  min-height: 44px; color: #f1f7f8;
+}
+window.kaflip headerbar button, window.kaflip headerbar menubutton > button {
+  color: rgba(241,247,248,0.85); background: transparent; box-shadow: none; border: none;
+}
+window.kaflip headerbar button:hover { background-color: rgba(255,255,255,0.10); }
+window.kaflip headerbar menubutton > button:checked { background-color: rgba(255,255,255,0.14); }
+window.kaflip .title { font-weight: 600; color: rgba(241,247,248,0.75); }
+
+/* Per page tint: Shell::select_tab sets .page-<id> on the window. */
+window.kaflip.page-library {
+  background-image: radial-gradient(circle at 75% 15%, rgba(181,167,222,0.18), transparent 55%),
+                    linear-gradient(160deg, #2d273c 0%, #3f3655 55%, #1f1b29 100%);
+}
+window.kaflip.page-reader {
+  background-image: radial-gradient(circle at 75% 15%, rgba(87,170,160,0.20), transparent 55%),
+                    linear-gradient(160deg, #1f2e34 0%, #263c42 55%, #162025 100%);
+}
+window.kaflip.page-recents {
+  background-image: radial-gradient(circle at 75% 15%, rgba(203,151,108,0.20), transparent 55%),
+                    linear-gradient(160deg, #34271f 0%, #4a3429 55%, #211814 100%);
+}
+window.kaflip.page-registry {
+  background-image: radial-gradient(circle at 75% 15%, rgba(104,170,200,0.18), transparent 55%),
+                    linear-gradient(160deg, #1c2933 0%, #273d4b 55%, #151e26 100%);
+}
+window.kaflip.page-undo {
+  background-image: radial-gradient(circle at 75% 15%, rgba(217,147,157,0.18), transparent 55%),
+                    linear-gradient(160deg, #352127 0%, #4c2e37 55%, #211519 100%);
+}
+/* Focus mode: the gradient goes nearly black so only the page glows. */
+window.kaflip.focus {
+  background-image: radial-gradient(circle at 50% 40%, rgba(87,170,160,0.10), transparent 60%),
+                    linear-gradient(180deg, #0c1416 0%, #0a1012 100%);
+}
+
+/* ── the rail: frosted, a soft pill for the selection ───────────────────── */
+.rail-scroll { background-color: rgba(0,0,0,0.22); border-right: 1px solid rgba(255,255,255,0.06); }
+.rail { background: transparent; padding: 10px 0; }
+.rail row {
+  border-radius: 10px; margin: 2px 10px; padding: 8px 12px;
+  color: rgba(241,247,248,0.80); background: transparent;
+}
+.rail row:hover { background-color: rgba(255,255,255,0.07); }
+.rail row:selected { background-color: rgba(255,255,255,0.16); color: #ffffff; }
+.rail row:focus-visible { outline: 2px solid rgba(255,255,255,0.4); outline-offset: -2px; }
+.rail-label { font-weight: 600; font-size: 1.05em; }
+
+.tab-library .rail-icon  { color: @c_library; }
+.tab-reader .rail-icon   { color: @c_reader; }
+.tab-recent .rail-icon   { color: @c_recent; }
+.tab-registry .rail-icon { color: @c_registry; }
+.tab-undo .rail-icon     { color: @c_undo; }
+
+/* ── pages and cards ────────────────────────────────────────────────────── */
+.page { padding: 24px; background: transparent; }
+scrolledwindow, viewport { background: transparent; }
+.panel {
+  background-color: rgba(12,12,18,0.30); border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 16px; padding: 16px 18px 14px 18px; color: #f1f7f8;
+}
+.panel-title   { font-size: 1.6em; font-weight: 800; color: #ffffff; }
+.dim-label, label.dim-label { color: rgba(241,247,248,0.62); opacity: 1; }
+.numeric       { font-feature-settings: "tnum"; }
+
+/* ── the reader ─────────────────────────────────────────────────────────── */
+.reader-page { padding: 14px 18px 12px 18px; }
+.book-card {
+  border-radius: 14px;
+  background-color: #ffffff;
+  box-shadow: 0 10px 34px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06);
+}
+window.kaflip.focus .reader-page { padding: 0; }
+window.kaflip.focus .book-card { border-radius: 0; box-shadow: none; background-color: #0f1719; }
+
+.reader-nav {
+  margin-top: 10px; padding: 4px 6px; border-radius: 9999px;
+  background-color: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.07);
+}
+.reader-nav label, .focus-hud label { font-feature-settings: "tnum"; }
+.reader-nav button, .focus-hud button {
+  border-radius: 9999px; min-width: 34px; min-height: 30px;
+  background: transparent; border: none; box-shadow: none; color: @c_reader;
+}
+.reader-nav button:hover, .focus-hud button:hover { background-color: rgba(255,255,255,0.10); }
+.reader-nav button:disabled, .focus-hud button:disabled { color: rgba(241,247,248,0.25); }
+
+.focus-hud {
+  margin: 0 0 18px 0; padding: 6px 10px; border-radius: 9999px;
+  background-color: rgba(10,16,18,0.82); border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45); color: #f1f7f8;
+}
+
+/* The empty Reader: the hero orb, a line, an Open pill. */
+.hero { padding: 40px; }
+.hero-title { font-size: 2.1em; font-weight: 800; color: #ffffff; }
+.hero-blurb { color: rgba(241,247,248,0.70); font-size: 1.05em; }
+
+/* ── Recent ─────────────────────────────────────────────────────────────── */
+listbox, list { background: transparent; color: #f1f7f8; }
+listbox.boxed-list {
+  background-color: rgba(0,0,0,0.18); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);
+}
+listbox.boxed-list > row { background: transparent; color: #f1f7f8; border-radius: 10px; }
+listbox.boxed-list > row:hover { background-color: rgba(255,255,255,0.06); }
+listbox.boxed-list > row:selected { background-color: rgba(255,255,255,0.18); color: #ffffff; }
+.recent-row { padding: 10px 12px; }
+.recent-row image { color: @c_recent; }
+.recent-title { font-weight: 700; font-size: 1.08em; color: #ffffff; }
+.recent-where { color: rgba(241,247,248,0.55); font-size: 0.92em; }
+
+/* ── controls: Rouster's ghost buttons, dark entries ────────────────────── */
+window.kaflip .page button.text-button, window.kaflip .hero button.text-button {
+  border-radius: 9999px; padding: 4px 16px; border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.06); color: #ffffff; box-shadow: none;
+}
+window.kaflip .page button.text-button:hover, window.kaflip .hero button.text-button:hover { background: rgba(255,255,255,0.14); }
+window.kaflip .page button.text-button:disabled { opacity: 0.4; }
+window.kaflip button.suggested-action, window.kaflip .hero button.text-button.suggested-action,
+window.kaflip .page button.text-button.suggested-action {
+  border-radius: 9999px; padding: 8px 22px; border: none; color: #062a2e; font-weight: 700;
+  background-image: linear-gradient(160deg, #5eead4 0%, #0e7490 100%);
+  box-shadow: 0 6px 20px rgba(14,116,144,0.40);
+}
+window.kaflip button.suggested-action:hover, window.kaflip .hero button.text-button.suggested-action:hover,
+window.kaflip .page button.text-button.suggested-action:hover {
+  background-image: linear-gradient(160deg, #7ff0dd 0%, #1289a8 100%);
+}
+window.kaflip entry, window.kaflip spinbutton, window.kaflip textview, window.kaflip textview text {
+  background-color: rgba(0,0,0,0.25); color: #ffffff; border-radius: 8px;
+}
+
+/* ── the Library (s006): a grid of covers ───────────────────────────────── */
+.library-grid { padding: 4px 2px 24px 2px; }
+.library-grid flowboxchild { padding: 8px; border-radius: 14px; background: transparent; }
+.library-grid flowboxchild:hover { background-color: rgba(255,255,255,0.07); }
+.library-grid flowboxchild:focus-visible { outline: 2px solid rgba(255,255,255,0.45); outline-offset: -2px; }
+.cover {
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.08);
+}
+.cover-blank { padding: 14px; }
+.cover-blank-title { font-weight: 800; font-size: 1.15em; color: #ffffff; }
+.cover-blank.tint-0 { background-image: linear-gradient(160deg, #5eead4 0%, #0e7490 100%); }
+.cover-blank.tint-1 { background-image: linear-gradient(160deg, #fcd34d 0%, #b45309 100%); }
+.cover-blank.tint-2 { background-image: linear-gradient(160deg, #c4b5fd 0%, #6d28d9 100%); }
+.cover-blank.tint-3 { background-image: linear-gradient(160deg, #fda4af 0%, #be123c 100%); }
+.cover-blank.tint-4 { background-image: linear-gradient(160deg, #93c5fd 0%, #1d4ed8 100%); }
+.tile-title  { font-weight: 700; color: #ffffff; margin-top: 4px; }
+.tile-author { color: rgba(241,247,248,0.60); font-size: 0.92em; }
+progressbar > trough { min-height: 8px; border-radius: 9999px; background-color: rgba(255,255,255,0.10); }
+progressbar > trough > progress {
+  min-height: 8px; border-radius: 9999px;
+  background-image: linear-gradient(90deg, #c4b5fd 0%, #7c3aed 100%);
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <!-- Ka-flip rail glyph: registry (a widget tree). currentColor. -->
+  <g fill="currentColor">
+    <rect x="1" y="1.5" width="6" height="3.5" rx="1"/>
+    <rect x="8" y="6.25" width="7" height="3.5" rx="1"/>
+    <rect x="8" y="11" width="7" height="3.5" rx="1"/>
+    <path d="M3.4 5h1.2v2.4H8v1.2H4.6v4.2H8V14H3.4z"/>
+  </g>
+</svg>

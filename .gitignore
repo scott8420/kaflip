@@ -1,0 +1,8 @@
+/build/
+/backups/
+/docs/
+/fixes/
+compile_commands.json
+*.o
+*.a
+.cache/

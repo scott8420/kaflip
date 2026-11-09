@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <!-- Ka-flip rail glyph: undo (a hooked arrow). currentColor. -->
+  <g fill="currentColor">
+    <path d="M5.5 2 1 6l4.5 4V7.5H10a3 3 0 0 1 0 6H6V15h4a4.5 4.5 0 0 0 0-9H5.5z"/>
+  </g>
+</svg>

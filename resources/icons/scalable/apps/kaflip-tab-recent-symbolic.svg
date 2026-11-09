@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <!-- Ka-flip rail glyph: recent (a stack of spines + a clock hand). currentColor. -->
+  <g fill="currentColor">
+    <rect x="1" y="2" width="3" height="12" rx=".8"/>
+    <rect x="5" y="3.5" width="2.5" height="10.5" rx=".8" opacity=".6"/>
+    <path d="M12 6a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm0 1.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2zM11.4 8h1.2v1.7l1.1.7-.6 1-1.7-1.1z"/>
+  </g>
+</svg>
