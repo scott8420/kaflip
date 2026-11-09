@@ -176,15 +176,19 @@ progressbar > trough > progress {
 
 /* ── Reading style window (s007) ────────────────────────────────────────── */
 .section-title { font-size: 1.12em; font-weight: 700; color: #ffffff; margin-top: 2px; }
-button.preset {
+/* s011 m5: scoped under window.kaflip .page ... .text-button so they outrank
+   the ghost-button rule above (and its :hover), which drew all four dark. */
+button.preset,
+window.kaflip .page button.text-button.preset {
   border-radius: 9999px; padding: 6px 16px; font-weight: 700; border: 1px solid rgba(255,255,255,0.18);
   box-shadow: 0 4px 14px rgba(0,0,0,0.30);
 }
-button.preset-Day   { background-image: none; background-color: #ffffff; color: #1f2328; }
-button.preset-Sepia { background-image: none; background-color: #f4ecd8; color: #5b4636; }
-button.preset-Night { background-image: none; background-color: #0f1719; color: #d7e3e5; }
-button.preset-Paper { background-image: none; background-color: #fbfaf6; color: #2b2b2b; }
-button.preset:hover { box-shadow: 0 0 0 3px rgba(94,234,212,0.45), 0 4px 14px rgba(0,0,0,0.30); }
+button.preset-Day,   window.kaflip .page button.text-button.preset.preset-Day   { background-image: none; background-color: #ffffff; color: #1f2328; }
+button.preset-Sepia, window.kaflip .page button.text-button.preset.preset-Sepia { background-image: none; background-color: #f4ecd8; color: #5b4636; }
+button.preset-Night, window.kaflip .page button.text-button.preset.preset-Night { background-image: none; background-color: #0f1719; color: #d7e3e5; }
+button.preset-Paper, window.kaflip .page button.text-button.preset.preset-Paper { background-image: none; background-color: #fbfaf6; color: #2b2b2b; }
+button.preset:hover,
+window.kaflip .page button.text-button.preset:hover { box-shadow: 0 0 0 3px rgba(94,234,212,0.45), 0 4px 14px rgba(0,0,0,0.30); }
 window.kaflip scale trough highlight { background-color: #5eead4; }
 window.kaflip switch:checked { background-color: #0e7490; }
 window.kaflip headerbar button:checked { background-color: rgba(255,255,255,0.16); color: #ffffff; }

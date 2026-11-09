@@ -95,6 +95,7 @@ private:
     void on_bookmark_toggle();                   // category: handler: Ctrl+B -- mark / unmark the page, one undo step (s008)
     void on_library_remove(const std::string& path);   // category: handler: one undo step (s006)
     void on_library_menu(Gtk::Widget& tile, const std::string& path, double x, double y);   // category: handler: right-click a cover (s006)
+    void on_library_search();                    // category: handler: Ctrl+F -- the Library, the search box focused (s011)
     void on_recent_open(const std::string& p);   // category: handler: open a recent (parameterised)
     void on_recent_clear();                      // category: handler: empty the recents list
     void on_dump_registry();                     // category: handler: print the live widget tree
@@ -118,6 +119,7 @@ private:
     std::string library_file() const;             // category: helper: the XDG path (s006)
     void queue_library_repaint();                 // category: helper: save + repaint once per idle (s006)
     void rebuild_library();                       // category: helper: the grid from the store (s006)
+    void refilter_library();                      // category: helper: the search -> the grid's filter + the count (s011)
     void apply_style();                           // category: helper: the book sheet from the active style (s007)
     std::string style_file() const;               // category: helper: the XDG config path (s007)
     void set_text_size(int pct, bool merge);      // category: helper: the Reading size, one undo step (s008a)
@@ -183,6 +185,12 @@ private:
     std::string             m_library_file;
     bool                    m_lib_repaint_queued = false;
     std::vector<std::string> m_lib_paths;          // grid child index -> book path
+    std::vector<core::LibItem> m_lib_books;        // s011: grid child index -> the book (the filter reads it)
+    std::string             m_lib_query;           // s011: the search box's text (a view state: not saved, not undone)
+    widgets::SearchEntry    m_lib_search;          // s011
+    widgets::Label          m_lib_nomatch;         // s011: "No books match ..."
+    widgets::DropDown       m_lib_sort;            // s011: Title / Author / Recently read / Date added / Progress
+    bool                    m_lib_sort_painting = false;   // s011: setting the dropdown from the store, not the user
     widgets::Box            m_library_page;        // vertical
     widgets::Label          m_lib_count;
     widgets::Label          m_lib_said;            // "Undid: Remove “Tapper”"

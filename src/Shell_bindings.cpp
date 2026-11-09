@@ -29,6 +29,7 @@ void Shell::bind_actions() {  // bindings: actions + recents group
     m_act_page_prev = add_action("page-prev", sigc::mem_fun(*this, &Shell::on_page_prev));
     m_act_focus = add_action("focus-mode", sigc::mem_fun(*this, &Shell::on_focus_mode));   // s005
     add_action("add-folder", sigc::mem_fun(*this, &Shell::on_add_folder));                 // s006
+    add_action("library-search", sigc::mem_fun(*this, &Shell::on_library_search));         // s011
     add_action("reading-style", sigc::mem_fun(*this, &Shell::on_reading_style));           // s007
     m_act_toc = add_action("contents", sigc::mem_fun(*this, &Shell::on_contents));         // s008
     m_act_marks = add_action("bookmarks", sigc::mem_fun(*this, &Shell::on_bookmarks));

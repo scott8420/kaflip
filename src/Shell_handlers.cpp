@@ -121,6 +121,15 @@ void Shell::on_library_remove(const std::string& path) {  // handler: one undo s
 
 // Right-click a cover: a one-item menu. Built per click and parented to the
 // tile; unparented once it closes (a popover must not outlive its parent).
+// s011 -- Ctrl+F: the Library, the search box focused, its text selected so
+// typing replaces the last search.
+void Shell::on_library_search() {  // handler
+    if (m_focus) set_focus_mode(false);
+    select_tab("library");
+    m_lib_search.grab_focus();
+    m_lib_search.select_region(0, -1);
+}
+
 void Shell::on_library_menu(Gtk::Widget& tile, const std::string& path, double x, double y) {  // handler
     auto pop = Gtk::make_managed<Gtk::Popover>();
     auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 2);

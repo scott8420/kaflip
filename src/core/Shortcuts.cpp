@@ -124,6 +124,11 @@ const std::vector<ShortcutSpec>& shortcut_registry() {
         {"General", "win.about",         {"F1"}, "", "About Ka-flip"},
         {"General", "win.quit",          {"<Ctrl>q"}, "", "Quit"},
 
+        // ── Library (s011) ────────────────────────────────────────────────────
+        {"Library", "win.library-search", {"<Ctrl>f"}, "", "Search the Library -- title, author or file name"},
+        {"Library", "", {}, "Enter (in the search)", "Open the first book that matches"},
+        {"Library", "", {}, "Esc (in the search)", "Clear the search"},
+
         // ── Mouse ─────────────────────────────────────────────────────────────
         // Doc-only: a gesture is not a GAction, but the reader still needs it.
         {"Mouse", "", {}, "Click a recent", "Open that book (or folder)"},

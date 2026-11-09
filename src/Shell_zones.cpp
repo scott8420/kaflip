@@ -279,9 +279,40 @@ void Shell::build_library_page() {  // zone: the Library
     open->add_css_class("suggested-action");
     open->set_action_name("win.open-book");
     open->set_valign(Gtk::Align::CENTER);
+    // s011 -- the search: filters the covers as you type (a view state, not an
+    // undo step). Ctrl+F lands here; Esc clears; Enter opens the first match.
+    m_lib_search.set_placeholder_text("Search title, author, file");
+    m_lib_search.set_valign(Gtk::Align::CENTER);
+    m_lib_search.set_size_request(280, -1);
+    m_lib_search.add_css_class("library-search");
+    m_lib_search.signal_search_changed().connect([this] {
+        m_lib_query = m_lib_search.get_text();
+        refilter_library();
+    });
+    m_lib_search.signal_stop_search().connect([this] { m_lib_search.set_text(""); });
+    m_lib_search.signal_activate().connect([this] {
+        for (std::size_t i = 0; i < m_lib_books.size(); ++i)
+            if (core::library::matches(m_lib_books[i], m_lib_query)) { open_book(m_lib_books[i].path); return; }
+    });
     head->append(*title);
     head->append(m_lib_count);
     head->append(*spacer);
+    head->append(m_lib_search);
+    // s011 -- the sort: a view choice, saved with the library, not undoable.
+    m_lib_sort.set_valign(Gtk::Align::CENTER);
+    m_lib_sort.set_tooltip_text("Sort the Library");
+    m_lib_sort.add_css_class("library-sort");
+    m_lib_sort.property_selected().signal_changed().connect([this] {
+        if (m_lib_sort_painting) return;
+        const auto i = m_lib_sort.get_selected();
+        const auto& orders = core::sort_orders();
+        if (i >= orders.size() || orders[i] == m_library.sort()) return;
+        m_library.set_sort(orders[i]);
+        if (auto lg = log::get(log::Area::Shell)) lg->info("library sort -> {}", core::sort_name(orders[i]));
+        rebuild_library();
+        save_library_now();
+    });
+    head->append(m_lib_sort);
     head->append(*add);
     head->append(*open);
     m_library_page.append(*head);
@@ -320,7 +351,18 @@ void Shell::build_library_page() {  // zone: the Library
     m_lib_scroll.set_child(m_lib_grid);
     m_lib_scroll.set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
     m_lib_scroll.set_vexpand(true);
+    m_lib_grid.set_filter_func([this](Gtk::FlowBoxChild* c) {   // s011
+        const int i = c ? c->get_index() : -1;
+        return i < 0 || i >= static_cast<int>(m_lib_books.size()) ||
+               core::library::matches(m_lib_books[static_cast<std::size_t>(i)], m_lib_query);
+    });
     m_library_page.append(m_lib_scroll);
+
+    m_lib_nomatch.add_css_class("hero-blurb");   // s011
+    m_lib_nomatch.set_vexpand(true);
+    m_lib_nomatch.set_valign(Gtk::Align::CENTER);
+    m_lib_nomatch.set_visible(false);
+    m_library_page.append(m_lib_nomatch);
 
     m_lib_empty.add_css_class("hero");
     m_lib_empty.set_vexpand(true);

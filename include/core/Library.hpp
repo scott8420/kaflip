@@ -56,6 +56,20 @@ struct LibItem {
     bool operator==(const LibItem&) const = default;
 };
 
+// s011 -- how the Library's grid is ordered. A view choice: saved with the
+// library, never an undo step.
+//   Title    -- A..Z, a leading "The / A / An" ignored ("The Hobbit" under H)
+//   Author   -- by surname ("Keith Laumer" and "Laumer, Keith" both under L),
+//               then title; no author at the end
+//   Recent   -- last opened first; never opened (since s011) at the end, A..Z
+//   Added    -- newest arrival first
+//   Progress -- furthest read first; finished after those; unread at the end
+enum class SortBy { Title, Author, Recent, Added, Progress };
+const char* sort_name(SortBy s);                 // "title", "author", ... (the JSON word)
+std::optional<SortBy> sort_from_name(const std::string& n);
+const char* sort_label(SortBy s);                // "Title", "Author", "Recently read", ...
+const std::vector<SortBy>& sort_orders();        // in menu order
+
 class Library {
 public:
     using Id    = std::string;
@@ -70,6 +84,7 @@ public:
 
     // ── reading ─────────────────────────────────────────────────────────────
     std::vector<LibItem> books() const;     // by title, case-insensitive, then path
+    std::vector<LibItem> books(SortBy by) const;   // s011: in the given order (ties: title, then path)
     std::vector<LibItem> folders() const;   // by path
     bool                 has_book(const std::string& path) const { return m_items.count(book_id(path)) > 0; }
     std::size_t          size() const { return m_items.size(); }
@@ -83,6 +98,13 @@ public:
     // s009: how far through the whole book, 0..1 (-1 / nullopt = not known).
     void                  set_progress(const std::string& path, double p);
     std::optional<double> progress(const std::string& path) const;
+    // s011: when the book was last opened (seconds since the epoch), for the
+    // "Recently read" order. Beside the records too: opening is not a step.
+    void                        set_opened(const std::string& path, std::int64_t when);
+    std::optional<std::int64_t> opened(const std::string& path) const;
+    // s011: the grid's order. A view choice: saved, not undoable.
+    SortBy sort() const { return m_sort; }
+    void   set_sort(SortBy s) { m_sort = s; }
 
     // ── persistence (JSON). load() is not a user choice: not undoable. ──────
     std::string to_json() const;
@@ -104,6 +126,8 @@ private:
     std::map<Id, LibItem>  m_items;
     std::map<std::string, Place> m_places;   // s008: book path -> where you were
     std::map<std::string, double> m_progress; // s009: book path -> 0..1
+    std::map<std::string, std::int64_t> m_opened;   // s011: book path -> last opened
+    SortBy                 m_sort = SortBy::Title;   // s011
     int                    m_strays = 0;
     int                    m_loading = 0;
     std::function<bool()>  m_door;
@@ -134,6 +158,20 @@ bool remove_bookmark(LibraryJournal& j, Library& lib, const std::string& path, i
 // The ids of the book's bookmarks inside [from, to) of chapter `href` (the
 // page on screen). to < 0 = to the end of the chapter.
 std::vector<int> marks_between(const LibItem& book, const std::string& href, int from, int to);
+
+// s011 -- the Library's search. A VIEW filter (like a page turn): never an
+// undo step, never saved. Every word of `query` must appear somewhere in the
+// title, the author or the file's name, in any order. Case does not matter,
+// and the common Latin accents fold away ("garcia" finds "Garc\u00eda",
+// "Bronte" finds "Bront\u00eb"). An empty / blank query matches every book.
+bool matches(const LibItem& book, const std::string& query);
+// The fold `matches` compares through: lower case, Latin-1 accents to their
+// base letter, everything else (other scripts) passed through unchanged.
+std::string fold(const std::string& text);
+// s011: the keys the orders compare: the title without a leading article,
+// the author's surname first. Both folded.
+std::string title_key(const std::string& title);
+std::string author_key(const std::string& author);
 
 // The verb table the selftest gate walks (CANON: every verb through the door).
 struct Verb {

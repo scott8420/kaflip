@@ -88,6 +88,25 @@
         return out.length > 90 ? out.slice(0, 90).replace(/\s+\S*$/, '') + '\u2026' : out;
     }
 
+    // s011 -- a publisher's box taller than our page (Beartown's cover:
+    // .ipadfp { height: 98vh } inside our top + bottom margins) spills an
+    // EMPTY column after it -- "page 1 of 2" on a cover. Trailing pages with
+    // no text starting on them and no picture on them are not pages.
+    function trimBlank(n) {
+        index();
+        const media = Array.from(document.querySelectorAll('img, svg, video, image'))
+            .map((m) => m.getBoundingClientRect())
+            .filter((r) => r.width > 0 && r.height > 0)
+            .map((r) => pageOfX(r.left + root().scrollLeft));
+        while (n > 1) {
+            const p = n - 1;
+            if (charAt(p) < total) break;                 // text starts on it
+            if (media.some((q) => q >= p)) break;         // a picture sits on it
+            n--;
+        }
+        return n;
+    }
+
     // The last column ends one right margin short of a full page, and WebKit
     // clamps scrollLeft to the overflow -- so without help the last page sits
     // a margin too far left. An absolutely placed 1px marker outside the
@@ -107,7 +126,7 @@
         marker.style.display = 'none';                       // measure the columns alone
         // s007: ceil, not round -- a spread's last page may be one column
         // (half a viewport) and still a page. 2px of slack for subpixels.
-        const n = Math.max(1, Math.ceil((root().scrollWidth - 2) / w));
+        const n = trimBlank(Math.max(1, Math.ceil((root().scrollWidth - 2) / w)));
         marker.style.left = (n * w - 1) + 'px';
         marker.style.display = 'block';
         return n;

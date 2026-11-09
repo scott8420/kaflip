@@ -12,6 +12,7 @@
 #include <glibmm/miscutils.h>
 #include <glibmm/variant.h>
 
+#include <ctime>
 #include <filesystem>
 #include <gtkmm/image.h>
 #include <gtkmm/listboxrow.h>
@@ -173,6 +174,8 @@ bool Shell::open_book(const std::string& path) {  // helper: open + remember + r
     // not an undo step), with its cover thumbnail made now if it is new.
     if (const core::Book* b = m_reader.book())
         core::library::note_opened(m_library, covers::describe(*b, path));
+    m_library.set_opened(path, static_cast<std::int64_t>(std::time(nullptr)));   // s011: "Recently read"
+    if (m_library.sort() == core::SortBy::Recent) m_lib_tiles_stale = true;     // re-order on the way back
     if (m_style_dialog && m_reader.book()) {   // s010: the style window follows the book
         const std::string& t = m_reader.book()->meta().title;
         m_style_dialog->set_book(path, t.empty() ? std::filesystem::path(path).stem().string() : t);
@@ -419,11 +422,22 @@ void Shell::rebuild_library() {  // helper: the grid from the store
     m_lib_tiles_stale = false;   // s009
     while (auto* c = m_lib_grid.get_child_at_index(0)) m_lib_grid.remove(*c);
     m_lib_paths.clear();
-    const auto books = m_library.books();
+    m_lib_books.clear();   // s011
+    const auto books = m_library.books(m_library.sort());   // s011
+    {   // s011: the dropdown shows the store's order (loaded, or just chosen)
+        const auto& orders = core::sort_orders();
+        for (std::size_t i = 0; i < orders.size(); ++i)
+            if (orders[i] == m_library.sort() && m_lib_sort.get_selected() != i) {
+                m_lib_sort_painting = true;
+                m_lib_sort.set_selected(static_cast<guint>(i));
+                m_lib_sort_painting = false;
+            }
+    }
     for (const auto& b : books) {
         auto* tile = make_tile(b, m_library.progress(b.path));
         m_lib_grid.append(*tile);
         m_lib_paths.push_back(b.path);
+        m_lib_books.push_back(b);   // s011
         // Right-click (or a long press on a touch screen) -> Read / Remove.
         if (auto* child = m_lib_grid.get_child_at_index(static_cast<int>(m_lib_paths.size() - 1))) {
             auto click = Gtk::GestureClick::create();
@@ -435,10 +449,25 @@ void Shell::rebuild_library() {  // helper: the grid from the store
             child->add_controller(click);
         }
     }
-    const auto n = books.size();
-    m_lib_count.set_text(n == 1 ? "1 book" : std::to_string(n) + " books");
-    m_lib_scroll.set_visible(n > 0);
+    refilter_library();   // s011: the count, the empty / no-match states
+}
+
+// s011 -- the search box -> the grid's filter, the count ("3 of 120 books"),
+// and which of grid / "your library is empty" / "no books match" shows.
+void Shell::refilter_library() {  // helper
+    m_lib_grid.invalidate_filter();
+    const auto n = m_lib_books.size();
+    std::size_t shown = 0;
+    for (const auto& b : m_lib_books) shown += core::library::matches(b, m_lib_query) ? 1 : 0;
+    const std::string all = n == 1 ? "1 book" : std::to_string(n) + " books";
+    m_lib_count.set_text(shown == n ? all : std::to_string(shown) + " of " + all);
+    m_lib_scroll.set_visible(shown > 0);
     m_lib_empty.set_visible(n == 0);
+    m_lib_search.set_sensitive(n > 0 || !m_lib_query.empty());
+    m_lib_nomatch.set_text("No books match \u201c" + m_lib_query + "\u201d  (Esc clears)");
+    m_lib_nomatch.set_visible(n > 0 && shown == 0);
+    if (auto lg = log::get(log::Area::Shell); lg && !m_lib_query.empty())
+        lg->info("library search \"{}\": {} of {}", m_lib_query, shown, n);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

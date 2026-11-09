@@ -747,6 +747,92 @@ int main() {
         check("cover: none -> empty", b4.cover_path().empty());
     }
 
+    // ── Library search (s011): a pure view filter ─────────────────────────────
+    {
+        std::cout << "\n-- library search --\n";
+        using core::LibItem;
+        using core::library::matches;
+        const LibItem t{LibItem::Kind::Book, "/shelf/Marquez/cien_anos.epub",
+                        "Cien años de soledad", "Gabriel García Márquez"};
+        const LibItem w{LibItem::Kind::Book, "/shelf/WH.epub", "Wuthering Heights", "Emily Brontë"};
+        check("search: empty / blank matches everything", matches(t, "") && matches(t, "   "));
+        check("search: title words, any case", matches(w, "wuthering") && matches(w, "HEIGHTS"));
+        check("search: author", matches(w, "emily"));
+        check("search: the file's name", matches(t, "cien_anos") && matches(w, "wh.epub"));
+        check("search: not the folder", !matches(t, "shelf"));
+        check("search: every word, any order, across fields", matches(w, "bronte heights") && matches(w, "  heights   emily "));
+        check("search: one missing word -> no", !matches(w, "bronte austen"));
+        check("search: accents fold both ways", matches(t, "garcia") && matches(t, "GARCÍA") &&
+                                                 matches(w, "brontë") && matches(t, "anos"));
+        check("search: substrings count", matches(w, "uther"));
+        check("search: fold leaves other scripts alone",
+              core::library::fold("Война É") == "Война e");
+    }
+
+    // ── Library sort (s011): the orders, the keys, the saved choice ───────────
+    {
+        std::cout << "\n-- library sort --\n";
+        using core::Library;
+        using core::LibItem;
+        using core::SortBy;
+        using K = LibItem::Kind;
+        namespace L = core::library;
+        check("sort key: a leading article is ignored", L::title_key("The Hobbit") == "hobbit" &&
+              L::title_key("A Princess of Mars") == "princess of mars" && L::title_key("An Ice") == "ice" &&
+              L::title_key("Theory") == "theory" && L::title_key("Anathem") == "anathem");
+        check("sort key: surname first", L::author_key("Keith Laumer") == "laumer\x01keith " &&
+              L::author_key("Laumer, Keith") == "laumer\x01 keith" && L::author_key("Plato") == "plato\x01");
+        check("sort key: Jr. is not the surname", L::author_key("Kurt Vonnegut Jr.").rfind("vonnegut\x01", 0) == 0);
+        check("sort key: no author -> empty", L::author_key("  ").empty());
+
+        Library l;   // no door: loading only
+        {
+            Library::Loading load(l);
+            l.put(Library::book_id("/b/hobbit.epub"), LibItem{K::Book, "/b/hobbit.epub", "The Hobbit", "J. R. R. Tolkien", "", "", 1});
+            l.put(Library::book_id("/b/bolo.epub"),   LibItem{K::Book, "/b/bolo.epub", "Bolo", "Keith Laumer", "", "", 2});
+            l.put(Library::book_id("/b/end.epub"),    LibItem{K::Book, "/b/end.epub", "Childhood's End", "Arthur C. Clarke", "", "", 3});
+            l.put(Library::book_id("/b/anon.epub"),   LibItem{K::Book, "/b/anon.epub", "Beowulf", "", "", "", 4});
+            l.put(Library::folder_id("/b"),           LibItem{K::Folder, "/b", "b"});
+        }
+        auto titles = [&](SortBy by) {
+            std::string out;
+            for (const auto& b : l.books(by)) out += (out.empty() ? "" : ",") + b.title;
+            return out;
+        };
+        check("sort: title (articles ignored, folders left out)",
+              titles(SortBy::Title) == "Beowulf,Bolo,Childhood's End,The Hobbit", titles(SortBy::Title));
+        check("sort: author by surname, no author last",
+              titles(SortBy::Author) == "Childhood's End,Bolo,The Hobbit,Beowulf", titles(SortBy::Author));
+        check("sort: date added, newest first",
+              titles(SortBy::Added) == "Beowulf,Childhood's End,Bolo,The Hobbit", titles(SortBy::Added));
+        l.set_opened("/b/bolo.epub", 100);
+        l.set_opened("/b/hobbit.epub", 200);
+        check("sort: recently read first, never opened after (A..Z)",
+              titles(SortBy::Recent) == "The Hobbit,Bolo,Beowulf,Childhood's End", titles(SortBy::Recent));
+        l.set_progress("/b/bolo.epub", 0.2);
+        l.set_progress("/b/end.epub", 1.0);
+        l.set_progress("/b/hobbit.epub", 0.7);
+        check("sort: progress -- reading (furthest first), finished, unread",
+              titles(SortBy::Progress) == "The Hobbit,Bolo,Childhood's End,Beowulf", titles(SortBy::Progress));
+        check("sort: books() is still by title", l.books().size() == 4);
+
+        l.set_sort(SortBy::Progress);
+        Library back;
+        check("sort: the choice and the opened times round-trip",
+              back.from_json(l.to_json()) && back.sort() == SortBy::Progress &&
+              back.opened("/b/hobbit.epub") == std::optional<std::int64_t>{200} &&
+              back.to_json() == l.to_json());
+        Library old;
+        check("sort: a pre-s011 library.json reads as Title",
+              old.from_json(R"({"version":1,"items":[],"places":{}})") && old.sort() == SortBy::Title);
+        check("sort: an unknown word reads as Title",
+              old.from_json(R"({"version":1,"items":[],"view":{"sort":"colour"}})") && old.sort() == SortBy::Title);
+        bool names = true;
+        for (auto s : core::sort_orders()) names = names && core::sort_from_name(core::sort_name(s)) == s;
+        check("sort: every order's name reads back", names && core::sort_orders().size() == 5);
+        check("sort: no strays", l.strays() == 0);
+    }
+
     // ── Library: store, verbs through the door, JSON, scan (s006) ─────────────
     {
         std::cout << "\n-- library --\n";

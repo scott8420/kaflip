@@ -47,6 +47,91 @@ std::vector<LibItem> Library::books() const {
     return out;
 }
 
+// s011 -- the orders.
+namespace {
+struct SortRow { SortBy by; const char* name; const char* label; };
+constexpr SortRow kSorts[] = {
+    {SortBy::Title,    "title",    "Title"},
+    {SortBy::Author,   "author",   "Author"},
+    {SortBy::Recent,   "recent",   "Recently read"},
+    {SortBy::Added,    "added",    "Date added"},
+    {SortBy::Progress, "progress", "Progress"},
+};
+}  // namespace
+
+const char* sort_name(SortBy s) {
+    for (const auto& r : kSorts) if (r.by == s) return r.name;
+    return "title";
+}
+const char* sort_label(SortBy s) {
+    for (const auto& r : kSorts) if (r.by == s) return r.label;
+    return "Title";
+}
+std::optional<SortBy> sort_from_name(const std::string& n) {
+    for (const auto& r : kSorts) if (n == r.name) return r.by;
+    return std::nullopt;
+}
+const std::vector<SortBy>& sort_orders() {
+    static const std::vector<SortBy> v = [] {
+        std::vector<SortBy> o;
+        for (const auto& r : kSorts) o.push_back(r.by);
+        return o;
+    }();
+    return v;
+}
+
+std::vector<LibItem> Library::books(SortBy by) const {
+    struct Row { LibItem b; std::string t, a; std::int64_t when; double pct; int band; };
+    std::vector<Row> rows;
+    for (const auto& [id, v] : m_items) {
+        if (v.kind != LibItem::Kind::Book) continue;
+        Row r{v, library::title_key(v.title.empty() ? fs::path(v.path).stem().string() : v.title),
+              library::author_key(v.author), -1, -1.0, 0};
+        if (auto o = opened(v.path)) r.when = *o;
+        if (auto p = progress(v.path)) r.pct = *p;
+        // Progress bands: reading (0 < p < 1) | finished | unread.
+        r.band = r.pct >= 1.0 ? 1 : r.pct > 0.0 ? 0 : 2;
+        rows.push_back(std::move(r));
+    }
+    auto by_title = [](const Row& x, const Row& y) {
+        return x.t != y.t ? x.t < y.t : x.b.path < y.b.path;
+    };
+    std::sort(rows.begin(), rows.end(), [&](const Row& x, const Row& y) {
+        switch (by) {
+        case SortBy::Author:
+            if (x.a.empty() != y.a.empty()) return y.a.empty();   // no author last
+            if (x.a != y.a) return x.a < y.a;
+            break;
+        case SortBy::Recent:
+            if (x.when != y.when) return x.when > y.when;          // never (-1) last
+            break;
+        case SortBy::Added:
+            if (x.b.added != y.b.added) return x.b.added > y.b.added;
+            break;
+        case SortBy::Progress:
+            if (x.band != y.band) return x.band < y.band;
+            if (x.band == 0 && x.pct != y.pct) return x.pct > y.pct;
+            break;
+        case SortBy::Title: break;
+        }
+        return by_title(x, y);
+    });
+    std::vector<LibItem> out;
+    out.reserve(rows.size());
+    for (auto& r : rows) out.push_back(std::move(r.b));
+    return out;
+}
+
+void Library::set_opened(const std::string& path, std::int64_t when) {
+    if (!path.empty()) m_opened[path] = when;
+}
+
+std::optional<std::int64_t> Library::opened(const std::string& path) const {
+    auto it = m_opened.find(path);
+    if (it == m_opened.end()) return std::nullopt;
+    return it->second;
+}
+
 std::vector<LibItem> Library::folders() const {
     std::vector<LibItem> out;
     for (const auto& [id, v] : m_items)
@@ -103,7 +188,9 @@ std::string Library::to_json() const {
     json places = json::object();   // s008
     for (const auto& [path, p] : m_places) places[path] = {{"href", p.href}, {"ch", p.ch}};
     for (const auto& [path, pct] : m_progress) places[path]["progress"] = pct;   // s009
-    return json{{"version", 1}, {"items", arr}, {"places", places}}.dump(1);
+    for (const auto& [path, t] : m_opened) places[path]["opened"] = t;          // s011
+    return json{{"version", 1}, {"items", arr}, {"places", places},
+                {"view", {{"sort", sort_name(m_sort)}}}}.dump(1);   // s011
 }
 
 bool Library::from_json(const std::string& text) {
@@ -111,6 +198,8 @@ bool Library::from_json(const std::string& text) {
     m_items.clear();
     m_places.clear();
     m_progress.clear();
+    m_opened.clear();          // s011
+    m_sort = SortBy::Title;
     json doc = json::parse(text, nullptr, false);
     if (doc.is_discarded() || !doc.is_object() || !doc.contains("items") || !doc["items"].is_array())
         return false;
@@ -145,9 +234,14 @@ bool Library::from_json(const std::string& text) {
             if (!p.is_object()) continue;
             Place pl{p.value("href", std::string()), std::max(0, p.value("ch", 0))};
             if (!pl.href.empty()) m_places[path] = pl;
+            if (p.contains("opened") && p["opened"].is_number_integer())   // s011
+                m_opened[path] = p["opened"].get<std::int64_t>();
             if (p.contains("progress") && p["progress"].is_number())   // s009
                 set_progress(path, p["progress"].get<double>());
         }
+    if (doc.contains("view") && doc["view"].is_object() && doc["view"].contains("sort") &&
+        doc["view"]["sort"].is_string())   // s011
+        if (auto s = sort_from_name(doc["view"]["sort"].get<std::string>())) m_sort = *s;
     return true;
 }
 
@@ -167,7 +261,7 @@ bool Library::save(const std::string& file) const {
 
 bool Library::load(const std::string& file) {
     std::ifstream in(file, std::ios::binary);
-    if (!in) { Loading load(*this); m_items.clear(); m_places.clear(); m_progress.clear(); return true; }   // no file yet: empty
+    if (!in) { Loading load(*this); m_items.clear(); m_places.clear(); m_progress.clear(); m_opened.clear(); m_sort = SortBy::Title; return true; }   // no file yet: empty
     std::ostringstream ss;
     ss << in.rdbuf();
     return from_json(ss.str());
@@ -260,6 +354,83 @@ bool remove_bookmark(LibraryJournal& j, Library& lib, const std::string& path, i
     const std::string label = "Remove bookmark" + (it->title.empty() ? std::string() : " “" + it->title + "”");
     b->marks.erase(it);
     return j.run(label, {id}, [&]() { lib.put(id, *b); });
+}
+
+// s011 -- search. UTF-8 in, UTF-8 out: ASCII lowered; the two-byte Latin-1
+// letters (C3 80..C3 BF) folded to their base ASCII letter; any other byte
+// sequence copied as is (so Cyrillic or CJK still match themselves exactly).
+std::string fold(const std::string& text) {
+    // C3 80 .. C3 BF -> base letter ('\0' = keep the original two bytes).
+    static const char kLatin1[64] = {
+        'a','a','a','a','a','a', 0 ,'c','e','e','e','e','i','i','i','i',   // C0-CF
+        'd','n','o','o','o','o','o', 0 ,'o','u','u','u','u','y', 0 , 0 ,  // D0-DF
+        'a','a','a','a','a','a', 0 ,'c','e','e','e','e','i','i','i','i',   // E0-EF
+        'd','n','o','o','o','o','o', 0 ,'o','u','u','u','u','y', 0 ,'y'};  // F0-FF
+    std::string out;
+    out.reserve(text.size());
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const auto c = static_cast<unsigned char>(text[i]);
+        if (c < 0x80) { out += char(std::tolower(c)); continue; }
+        if (c == 0xC3 && i + 1 < text.size()) {
+            const auto d = static_cast<unsigned char>(text[i + 1]);
+            if (d >= 0x80 && d <= 0xBF && kLatin1[d - 0x80]) { out += kLatin1[d - 0x80]; ++i; continue; }
+        }
+        out += char(c);
+    }
+    return out;
+}
+
+std::string title_key(const std::string& title) {
+    std::string t = fold(title);
+    std::size_t i = 0;
+    while (i < t.size() && (std::isspace(static_cast<unsigned char>(t[i])) ||
+                            t[i] == '"' || t[i] == '\'' || t[i] == '(' || t[i] == '[')) ++i;
+    t.erase(0, i);
+    for (const char* art : {"the ", "a ", "an "}) {
+        const std::string a = art;
+        if (t.size() > a.size() && t.compare(0, a.size(), a) == 0) { t.erase(0, a.size()); break; }
+    }
+    return t;
+}
+
+std::string author_key(const std::string& author) {
+    std::string a = fold(author);
+    while (!a.empty() && std::isspace(static_cast<unsigned char>(a.back()))) a.pop_back();
+    if (a.empty()) return a;
+    if (const auto comma = a.find(','); comma != std::string::npos)   // "Laumer, Keith"
+        return a.substr(0, comma) + '\x01' + a.substr(comma + 1);
+    // "Keith Laumer" -> "laumer\x01keith"; a trailing "Jr." / "Sr." / "III" is
+    // not the surname ("Kurt Vonnegut Jr." files under V).
+    std::vector<std::string> w;
+    std::size_t i = 0;
+    while (i < a.size()) {
+        while (i < a.size() && std::isspace(static_cast<unsigned char>(a[i]))) ++i;
+        std::size_t j = i;
+        while (j < a.size() && !std::isspace(static_cast<unsigned char>(a[j]))) ++j;
+        if (j > i) w.push_back(a.substr(i, j - i));
+        i = j;
+    }
+    std::size_t last = w.size() - 1;
+    for (const char* suf : {"jr.", "jr", "sr.", "sr", "ii", "iii", "iv"})
+        if (last > 0 && w[last] == suf) { --last; break; }
+    std::string key = w[last] + '\x01';
+    for (std::size_t k = 0; k < last; ++k) key += w[k] + ' ';
+    return key;
+}
+
+bool matches(const LibItem& book, const std::string& query) {
+    const std::string hay = fold(book.title) + '\n' + fold(book.author) + '\n' +
+                            fold(std::filesystem::path(book.path).filename().string());
+    const std::string q = fold(query);
+    std::size_t i = 0;
+    while (i < q.size()) {
+        while (i < q.size() && std::isspace(static_cast<unsigned char>(q[i]))) ++i;
+        std::size_t j = i;
+        while (j < q.size() && !std::isspace(static_cast<unsigned char>(q[j]))) ++j;
+        if (j > i && hay.find(q.substr(i, j - i)) == std::string::npos) return false;
+        i = j;
+    }
+    return true;
 }
 
 std::vector<int> marks_between(const LibItem& book, const std::string& href, int from, int to) {

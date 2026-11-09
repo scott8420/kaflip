@@ -44,6 +44,13 @@ Shell::Shell()
       m_lib_status("shell.library.status"),
       m_lib_scroll("shell.library.scroll"),
       m_lib_grid("shell.library.grid"),
+      m_lib_search("shell.library.search"),
+      m_lib_nomatch("shell.library.nomatch"),
+      m_lib_sort("shell.library.sort", [] {
+          std::vector<Glib::ustring> v;
+          for (auto s : core::sort_orders()) v.emplace_back(core::sort_label(s));
+          return v;
+      }()),
       m_lib_empty("shell.library.empty", Gtk::Orientation::VERTICAL, 8) {
     set_name("shell.window");
 }
