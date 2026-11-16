@@ -23,6 +23,7 @@
 #include "core/Library.hpp"
 #include "core/ReadingStyle.hpp"
 #include "core/Progress.hpp"
+#include "core/Proof.hpp"
 #include <fstream>
 #include <set>
 
@@ -1011,6 +1012,14 @@ int main() {
         check("style: Fonts level forces the body font onto the book's elements",
               has(css, "font-family: \"Literata\" !important;") && has(css, "body p, body li"));
         check("style: Fonts level leaves element colours to the book", !has(css, "color: inherit !important"));
+        check("style: a drop cap keeps its size -- no forced line height on spans or a dropcap block, our font on spans",
+              !has(css, "body span, ") && !has(css, "body span {" " line-height") && has(css, "body span { font-family: \"Literata\" !important; }") &&
+                  has(css, "body div:not([class*=\"dropcap\" i])"));
+        {
+            ReadingStyle bf = s;   // the book's font: nothing forced on spans at all
+            bf.body_font.clear();
+            check("style: the book's font -- spans left to the book", !has(core::style_css(bf), "body span"));
+        }
         ReadingStyle pub = s;
         pub.level = Override::Publisher;
         const std::string pcss = core::style_css(pub);
@@ -1042,6 +1051,36 @@ int main() {
         check("style JSON round-trips", back && *back == j);
         check("style JSON: missing fields keep defaults", core::style_from_json("{}") && *core::style_from_json("{}") == ReadingStyle{});
         check("style JSON: junk refused", !core::style_from_json("[1,2"));
+
+        // s012 m1 -- scene breaks.
+        {
+            ReadingStyle sb = s;
+            check("scene breaks: on by default", ReadingStyle{}.scene_breaks);
+            const std::string on = core::style_css(sb);
+            check("scene breaks: centred, a line-height gap above and below",
+                  has(on, ".kaflip-scene-break { text-align: center !important") &&
+                  has(on, "em 0 !important; padding: 0 !important; break-after: avoid"));
+            check("scene breaks: the next paragraph starts flush", has(on, ".kaflip-scene-break + p { text-indent: 0 !important; }"));
+            sb.scene_breaks = false;
+            check("scene breaks: off -> no rule", !has(core::style_css(sb), "kaflip-scene-break"));
+            auto rt = core::style_from_json(core::style_to_json(sb));
+            check("scene breaks: off survives JSON", rt && !rt->scene_breaks);
+            check("scene breaks: old style.json reads as on",
+                  core::style_from_json("{\"hyphens\": true}") && core::style_from_json("{\"hyphens\": true}")->scene_breaks);
+        }
+        {
+            using core::is_scene_break;
+            check("scene break: '* * *', '***', '*'", is_scene_break("* * *") && is_scene_break("***") && is_scene_break("*"));
+            check("scene break: \u2042, '# # #', '~ ~ ~', bullets",
+                  is_scene_break("\u2042") && is_scene_break("# # #") && is_scene_break("~ ~ ~") && is_scene_break("\u2022 \u2022 \u2022"));
+            check("scene break: rules need three ('---', '\u2014 \u2014 \u2014', '___')",
+                  is_scene_break("---") && is_scene_break("\u2014 \u2014 \u2014") && is_scene_break("___") && !is_scene_break("\u2014"));
+            check("scene break: nbsp and padding allowed", is_scene_break("\u00a0 *\u00a0*\u00a0* \n"));
+            check("scene break: '. . .', '...', empty are not", !is_scene_break(". . .") && !is_scene_break("...") && !is_scene_break("  "));
+            check("scene break: letters or digits are not ('* Note *', '1 * 2')",
+                  !is_scene_break("* Note *") && !is_scene_break("1 * 2") && !is_scene_break("Chapter 1"));
+            check("scene break: over 24 marks is not", !is_scene_break(std::string(25, '*')) && is_scene_break(std::string(24, '*')));
+        }
 
         {
             ReadingStyle r = *core::find_preset("Paper");

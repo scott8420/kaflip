@@ -38,6 +38,7 @@ struct ReadingStyle {
     Paras       paras   = Paras::Book;
     Justify     justify = Justify::Book;
     bool        hyphens = false;
+    bool        scene_breaks = true;  // s012: "* * *" centred, a blank line above and below
     // colours (#rrggbb)
     std::string page = "#ffffff";
     std::string text = "#1f2328";

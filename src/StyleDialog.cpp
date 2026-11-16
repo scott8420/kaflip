@@ -42,6 +42,8 @@ const char* kSample =
     "<p>She kept a ledger of such things. <i>Rain on a Tuesday.</i> A heron, unexpected. "
     "The <a href=\"#\">postman's bicycle</a>, which squeaked in a minor key and was therefore "
     "a poet.</p>"
+    "<p class=\"kaflip-scene-break\">* * *</p>"
+    "<p>Morning, and the cat had moved to the other bank.</p>"
     "<h2>A smaller heading</h2>"
     "<p>Hyphenation shows itself in long words: incomprehensibilities, counterrevolutionaries, "
     "and the characteristically unremarkable afternoon light.</p>";
@@ -262,6 +264,12 @@ void StyleDialog::build() {
     m_hyphens.property_active().signal_changed().connect([this] {
         change("Hyphenation", "", [this](core::ReadingStyle& s) { s.hyphens = m_hyphens.get_active(); });
     });
+    m_scene_breaks.set_halign(Gtk::Align::START);
+    m_scene_breaks.set_tooltip_text("A paragraph that is only \"* * *\" (or \u2042, ###, ~ ~ ~ ...) "
+                                    "is centred with a blank line above and below");
+    m_scene_breaks.property_active().signal_changed().connect([this] {
+        change("Scene breaks", "", [this](core::ReadingStyle& s) { s.scene_breaks = m_scene_breaks.get_active(); });
+    });
     m_spread.set_halign(Gtk::Align::START);
     m_spread.property_active().signal_changed().connect([this] {
         change("Two pages", "", [this](core::ReadingStyle& s) { s.spread = m_spread.get_active(); });
@@ -304,8 +312,10 @@ void StyleDialog::build() {
     add_row("Paragraphs", m_paras);
     add_row("Alignment", m_justify);
     add_row("Hyphenation", m_hyphens);
+    add_row("Scene breaks", m_scene_breaks);
     for (Gtk::Widget* w : std::initializer_list<Gtk::Widget*>{&m_level, &m_body_font, &m_body_book, &m_head_font, &m_head_book,
-                                                              &m_size, &m_line, &m_paras, &m_justify, &m_hyphens})
+                                                              &m_size, &m_line, &m_paras, &m_justify, &m_hyphens,
+                                                              &m_scene_breaks})
         m_reading_only.push_back(w);
     section("Colours");
     add_row("", *colours);
@@ -372,6 +382,7 @@ void StyleDialog::refresh() {
     m_paras.set_selected(static_cast<guint>(s.paras));
     m_justify.set_selected(static_cast<guint>(s.justify));
     m_hyphens.set_active(s.hyphens);
+    m_scene_breaks.set_active(s.scene_breaks);
     m_page.set_rgba(rgba_of(s.page));
     m_text.set_rgba(rgba_of(s.text));
     m_head.set_rgba(rgba_of(s.head));

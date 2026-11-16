@@ -68,7 +68,7 @@ private:
     Gtk::FontDialogButton m_body_font, m_head_font;
     Gtk::CheckButton    m_body_book, m_head_book;
     Gtk::Scale          m_size, m_line, m_margin_x, m_margin_y, m_max_line;
-    Gtk::Switch         m_hyphens, m_spread;
+    Gtk::Switch         m_hyphens, m_scene_breaks, m_spread;
     Gtk::ColorDialogButton m_page, m_text, m_head, m_link;
     WebKitWebView*      m_preview = nullptr;   // owned by the GTK tree
     Gtk::Label          m_focus_note;          // s008a: "focus mode uses your Reading text and page"

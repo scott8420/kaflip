@@ -241,6 +241,30 @@
     for (const img of document.images) img.addEventListener('load', relayout);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayout);
 
+    // s012 -- scene breaks. A paragraph whose whole text is a break mark
+    // ("* * *", "⁂", "###", "~ ~ ~", "---") gets .kaflip-scene-break; the
+    // reading style decides what that looks like. A copy of
+    // core::is_scene_break (core/Proof.cpp) -- keep the two in step. Only a
+    // class is added: the text, and so every character offset, is unchanged.
+    (function sceneBreaks() {
+        const ORN = /[*#~+⁂∗✱❧❦•·§✴✶]/g;
+        const RULE = /[-_=–—]/g;
+        const ONLY = /^[\s    .*#~+⁂∗✱❧❦•·§✴✶\-_=–—]*$/;
+        const body = document.body;
+        if (!body) return;
+        let n = 0;
+        for (const el of body.querySelectorAll('p, div, center')) {
+            if (el.querySelector('p, div, img, svg, video, table, ul, ol, h1, h2, h3, h4, h5, h6')) continue;
+            const t = el.textContent || '';
+            if (!ONLY.test(t)) continue;
+            const solid = t.replace(/[\s    ]/g, '');
+            if (!solid.length || [...solid].length > 24) continue;
+            const orn = (solid.match(ORN) || []).length, rules = (solid.match(RULE) || []).length;
+            if (orn > 0 || rules >= 3) { el.classList.add('kaflip-scene-break'); ++n; }
+        }
+        if (n) console.log('kaflip: ' + n + ' scene break(s)');
+    })();
+
     count = measure();
     if (!toHash()) go(0);
 })();

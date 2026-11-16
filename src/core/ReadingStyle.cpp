@@ -108,11 +108,17 @@ std::string style_css(const ReadingStyle& in) {
     css += " }\n";
 
     // Fonts level and up: the book's own element rules give way.
+    // s013 (Scott): a book's drop cap keeps its own size -- a span (or a
+    // classed block) floated beside the first lines. Forcing our line height
+    // on every span made a 2-line cap 4 lines deep (Composix's Werewolf).
+    // Spans take the paragraph's line height anyway; only their font is ours.
     if (s.level != Override::Publisher) {
-        css += "body p, body li, body div, body span, body blockquote, body td, body dd {"
+        const std::string not_cap = ":not([class*=\"dropcap\" i]):not([class*=\"drop-cap\" i]):not([class*=\"drop_cap\" i])";
+        css += "body p, body li, body div" + not_cap + ", body blockquote, body td, body dd {"
                " line-height: " + num(s.line_height) + " !important;";
         if (!s.body_font.empty()) css += " font-family: " + family(s.body_font) + " !important;";
         css += " }\n";
+        if (!s.body_font.empty()) css += "body span { font-family: " + family(s.body_font) + " !important; }\n";
     }
     if (!s.head_font.empty())
         css += "h1, h2, h3, h4, h5, h6 { font-family: " + family(s.head_font) + F + "; }\n";
@@ -135,6 +141,17 @@ std::string style_css(const ReadingStyle& in) {
     }
     if (s.hyphens)
         css += "body, body p { -webkit-hyphens: auto" + F + "; hyphens: auto" + F + "; }\n";
+    // s012: paginate.js tags a paragraph that is only a break mark ("* * *")
+    // with .kaflip-scene-break. Centred, a blank line (one line height) above
+    // and below, never split from the text after it; the paragraph after it
+    // starts flush, as after a heading. Ours at every level: the reader asked.
+    if (s.scene_breaks) {
+        const std::string gap = num(s.line_height) + "em";
+        css += ".kaflip-scene-break { text-align: center !important; text-indent: 0 !important;"
+               " margin: " + gap + " 0 !important; padding: 0 !important;"
+               " break-after: avoid; break-inside: avoid; }\n"
+               ".kaflip-scene-break + p { text-indent: 0 !important; }\n";
+    }
 
     // Colours: headings and links always get ours as a default; Everything
     // clears the book's grounds and text colours on every element too.
@@ -173,7 +190,7 @@ json to_j(const ReadingStyle& s) {
                 {"size_pct", s.size_pct}, {"line_height", s.line_height},
                 {"paras", s.paras == Paras::Book ? "book" : s.paras == Paras::Indent ? "indent" : "spaced"},
                 {"justify", s.justify == Justify::Book ? "book" : s.justify == Justify::Left ? "left" : "full"},
-                {"hyphens", s.hyphens},
+                {"hyphens", s.hyphens}, {"scene_breaks", s.scene_breaks},
                 {"page", s.page}, {"text", s.text}, {"head", s.head}, {"link", s.link},
                 {"margin_x", s.margin_x}, {"margin_y", s.margin_y}, {"max_line", s.max_line},
                 {"spread", s.spread}};
@@ -193,6 +210,7 @@ ReadingStyle from_j(const json& j) {
     const std::string ju = j.value("justify", std::string("book"));
     s.justify   = ju == "left" ? Justify::Left : ju == "full" ? Justify::Full : Justify::Book;
     s.hyphens   = j.value("hyphens", s.hyphens);
+    s.scene_breaks = j.value("scene_breaks", s.scene_breaks);
     s.page = j.value("page", s.page); s.text = j.value("text", s.text);
     s.head = j.value("head", s.head); s.link = j.value("link", s.link);
     s.margin_x = j.value("margin_x", s.margin_x);
